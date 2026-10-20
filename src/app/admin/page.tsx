@@ -137,6 +137,8 @@ export default function AdminOrganizerPage() {
   const [selSellerId, setSelSellerId] = useState<string>("");
   const [generatingPool, setGeneratingPool] = useState<boolean>(false);
   const [sellerStatusMsg, setSellerStatusMsg] = useState<string | null>(null);
+  // Control para evitar rebotes de clics rápidos en el bolillero
+  const [togglingBall, setTogglingBall] = useState<number | null>(null);
 
   // Sincronizar el input de tamaño de talonario con el tope permitido por su plan
   useEffect(() => {
@@ -402,9 +404,6 @@ export default function AdminOrganizerPage() {
     gameState.claims.find((c) => c.id === selectedClaimId) ||
     currentStageClaims[0] ||
     gameState.claims[0];
-
-  // Control para evitar rebotes de clics rápidos en el bolillero
-  const [togglingBall, setTogglingBall] = useState<number | null>(null);
 
   const handleToggleBallWithVoice = async (ballNum: number) => {
     if (togglingBall !== null) return; // Evita doble clic o conflicto de red
