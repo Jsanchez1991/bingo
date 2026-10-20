@@ -435,21 +435,50 @@ export default function SellerPosPage() {
                         </button>
                       </div>
 
-                      <button
-                        type="button"
-                        disabled={!seller.active}
-                        onClick={(e) =>
-                          handleSellCards(
-                            e,
-                            grp.secretToken,
-                            grp.buyerName,
-                            grp.buyerPhone
-                          )
-                        }
-                        className="w-full py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-600 text-white font-extrabold text-xs cursor-pointer"
-                      >
-                        ➕ Agregar +1 Tabla adicional a este cliente
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          disabled={!seller.active}
+                          onClick={(e) =>
+                            handleSellCards(
+                              e,
+                              grp.secretToken,
+                              grp.buyerName,
+                              grp.buyerPhone
+                            )
+                          }
+                          className="flex-1 py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-600 text-white font-extrabold text-xs cursor-pointer"
+                        >
+                          ➕ Agregar +1 Tabla
+                        </button>
+                        <button
+                          type="button"
+                          disabled={!seller.active}
+                          onClick={async () => {
+                            const ok = window.confirm(
+                              `¿Eliminar a "${grp.buyerName}" y sus ${grp.cards.length} tabla(s)?`
+                            );
+                            if (!ok) return;
+                            const res = await fetch("/api/bingo", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({
+                                action: "DELETE_CARD_GROUP",
+                                sellerCode,
+                                secretToken: grp.secretToken,
+                              }),
+                            });
+                            const data = await res.json();
+                            if (data.ok && data.state) {
+                              setGameState(data.state);
+                            }
+                          }}
+                          className="py-2 px-3 rounded-xl bg-red-600/20 hover:bg-red-600 border border-red-500/60 text-red-300 hover:text-white font-black text-xs cursor-pointer transition-colors"
+                          title="Eliminar este cliente y sus tablas"
+                        >
+                          🗑️ Eliminar
+                        </button>
+                      </div>
                     </div>
                   </div>
                 );

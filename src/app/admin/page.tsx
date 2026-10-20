@@ -1782,7 +1782,7 @@ export default function AdminOrganizerPage() {
                             }
                             className="flex-1 py-1.5 px-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-600 text-white font-extrabold text-xs cursor-pointer"
                           >
-                            ➕ Agregar +1 Tabla a este cliente
+                            ➕ Agregar +1 Tabla
                           </button>
 
                           {primaryLock && (
@@ -1799,6 +1799,24 @@ export default function AdminOrganizerPage() {
                               🔓 Liberar IP
                             </button>
                           )}
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const ok = window.confirm(
+                                `¿Eliminar a "${grp.buyerName}" y sus ${grp.cards.length} tabla(s) (${cardNumbers.map((n) => `#${n}`).join(", ")})?`
+                              );
+                              if (!ok) return;
+                              postAction({
+                                action: "DELETE_CARD_GROUP",
+                                secretToken: grp.secretToken,
+                              });
+                            }}
+                            className="py-1.5 px-2.5 rounded-xl bg-red-600/20 hover:bg-red-600 border border-red-500/60 text-red-300 hover:text-white font-black text-xs cursor-pointer transition-colors"
+                            title="Eliminar este cliente y sus tablas"
+                          >
+                            🗑️ Eliminar
+                          </button>
                         </div>
                       </div>
                     </div>
@@ -2027,6 +2045,23 @@ export default function AdminOrganizerPage() {
                             className="bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs py-2 px-2.5 rounded-xl border border-slate-700 cursor-pointer"
                           >
                             {s.active ? "Pausar" : "Activar"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const ok = window.confirm(
+                                `¿Eliminar al vendedor "${s.name}"?`
+                              );
+                              if (!ok) return;
+                              postAction({
+                                action: "DELETE_SELLER",
+                                sellerId: s.id,
+                              });
+                            }}
+                            className="bg-red-600/20 hover:bg-red-600 border border-red-500/60 text-red-300 hover:text-white font-black text-xs py-2 px-2.5 rounded-xl cursor-pointer transition-colors"
+                            title="Eliminar vendedor"
+                          >
+                            🗑️
                           </button>
                         </div>
                       </div>

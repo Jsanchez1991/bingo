@@ -674,6 +674,47 @@ async function handlePostAction(req: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ ok: true, state });
     }
 
+    // A6-B. Eliminar un Vendedor del Evento
+    if (action === "DELETE_SELLER") {
+      const state = readGameState(requestedEventId);
+      state.sellers = (state.sellers || []).filter(
+        (s) => s.id !== body.sellerId
+      );
+      writeGameState(state, state.eventId);
+      return NextResponse.json({ ok: true, state });
+    }
+
+    // A6-C. Eliminar Tablas / Cliente (por secretToken o por cardNumber individual)
+    if (action === "DELETE_CARD_GROUP") {
+      let targetState = readGameState(requestedEventId);
+      if (body.sellerCode) {
+        const foundSeller = findEventBySellerCode(String(body.sellerCode));
+        if (foundSeller) targetState = foundSeller.state;
+      }
+
+      const secretToken = body.secretToken as string | undefined;
+      const cardNumber = body.cardNumber as string | undefined;
+
+      if (cardNumber) {
+        targetState.cards = targetState.cards.filter(
+          (c) => c.cardNumber !== cardNumber
+        );
+        targetState.claims = targetState.claims.filter(
+          (cl) => cl.cardNumber !== cardNumber
+        );
+      } else if (secretToken) {
+        targetState.cards = targetState.cards.filter(
+          (c) => c.secretToken !== secretToken
+        );
+        targetState.claims = targetState.claims.filter(
+          (cl) => cl.secretToken !== secretToken
+        );
+      }
+
+      writeGameState(targetState, targetState.eventId);
+      return NextResponse.json({ ok: true, state: targetState });
+    }
+
     // =========================================================================
     // ACCIONES DE JUEGO EN VIVO Y CARTONES (SOBRE EL EVENTO CORRESPONDIENTE)
     // =========================================================================
@@ -1125,7 +1166,11 @@ async function handlePostAction(req: NextRequest): Promise<NextResponse> {
         );
       }
 
-      const firstCardNum = targetState.cards.length + 1;
+      const maxExistingNum = targetState.cards.reduce(
+        (max, c) => Math.max(max, parseInt(c.cardNumber, 10) || 0),
+        0
+      );
+      const firstCardNum = maxExistingNum + 1;
       const shortHash = crypto.randomBytes(3).toString("hex");
       const sharedToken =
         existingSecretToken ||
@@ -1140,7 +1185,7 @@ async function handlePostAction(req: NextRequest): Promise<NextResponse> {
 
       const createdCards: BingoCardSheet[] = [];
       for (let i = 0; i < quantity; i++) {
-        const nextNum = targetState.cards.length + 1;
+        const nextNum = maxExistingNum + i + 1;
         const newCard = createBingoCardSheet(
           nextNum,
           existingClientCard ? existingClientCard.buyerName : buyerName,
