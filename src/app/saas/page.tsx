@@ -44,9 +44,18 @@ export default function SaasSuperAdminPage() {
   const [companyName, setCompanyName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [accessCode, setAccessCode] = useState("");
   const [planId, setPlanId] = useState<SaasPlanId>("PLAN_BASICO");
   const [firstEventTitle, setFirstEventTitle] = useState("");
   const [priceText, setPriceText] = useState("$2.00");
+
+  // Estado para editar los datos, usuario y contraseña de un Organizador existente
+  const [editingOrgId, setEditingOrgId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editCompany, setEditCompany] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [editPhone, setEditPhone] = useState("");
+  const [editAccessCode, setEditAccessCode] = useState("");
 
   // Modal/Formulario rápido para crear otro evento a un organizador existente
   const [newEventOrgId, setNewEventOrgId] = useState<string | null>(null);
@@ -169,6 +178,7 @@ export default function SaasSuperAdminPage() {
         organizationName: companyName || orgName,
         email,
         phone,
+        accessCode: accessCode.trim() || undefined,
         planId,
         firstEventTitle:
           firstEventTitle || `GRAN BINGO ${(companyName || orgName).toUpperCase()}`,
@@ -184,12 +194,98 @@ export default function SaasSuperAdminPage() {
       setCompanyName("");
       setEmail("");
       setPhone("");
+      setAccessCode("");
       setFirstEventTitle("");
       showNotice(
-        `✅ Organizador "${data.newOrganizer.organizationName}" creado con ${
+        `✅ Organizador "${data.newOrganizer.organizationName}" creado (Usuario: ${data.newOrganizer.email} | Clave: ${data.newOrganizer.accessCode}) con ${
           SAAS_PLANS[data.newOrganizer.planId as SaasPlanId].name
-        } y su primer evento ya está activo.`
+        }.`
       );
+    }
+  };
+
+  const handleStartEditOrganizer = (org: SaasOrganizer) => {
+    setEditingOrgId(org.id);
+    setEditName(org.name);
+    setEditCompany(org.organizationName);
+    setEditEmail(org.email);
+    setEditPhone(org.phone);
+    setEditAccessCode(org.accessCode);
+  };
+
+  const handleSaveEditOrganizer = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingOrgId) return;
+    const res = await fetch("/api/bingo", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "UPDATE_ORGANIZER",
+        organizerId: editingOrgId,
+        name: editName,
+        organizationName: editCompany,
+        email: editEmail,
+        phone: editPhone,
+        accessCode: editAccessCode,
+      }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      setOrganizers(data.organizers || []);
+      setEventsList(data.eventsList || []);
+      setEditingOrgId(null);
+      showNotice(
+        "✅ Datos, usuario y contraseña del organizador actualizados correctamente."
+      );
+    }
+  };
+
+  const handleDeleteOrganizer = async (org: SaasOrganizer) => {
+    const confirmed = window.confirm(
+      `¿Estás seguro de eliminar al organizador "${org.organizationName}" (${org.name}) y todos sus eventos? Esta acción no se puede deshacer.`
+    );
+    if (!confirmed) return;
+
+    const res = await fetch("/api/bingo", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "DELETE_ORGANIZER",
+        organizerId: org.id,
+      }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      setOrganizers(data.organizers || []);
+      setEventsList(data.eventsList || []);
+      setActiveDefaultEventId(data.activeDefaultEventId || "");
+      showNotice(`🗑️ Organizador "${org.organizationName}" eliminado.`);
+    } else {
+      showNotice(`⚠️ ${data.message || "No se pudo eliminar el organizador."}`);
+    }
+  };
+
+  const handleDeleteEvent = async (eventId: string, title: string) => {
+    const confirmed = window.confirm(
+      `¿Eliminar el evento "${title}" (${eventId})?`
+    );
+    if (!confirmed) return;
+
+    const res = await fetch("/api/bingo", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "DELETE_EVENT",
+        targetEventId: eventId,
+      }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      setEventsList(data.eventsList || []);
+      setActiveDefaultEventId(data.activeDefaultEventId || "");
+      showNotice(`🗑️ Evento "${title}" eliminado.`);
+    } else {
+      showNotice(`⚠️ ${data.message || "No se pudo eliminar el evento."}`);
     }
   };
 
@@ -429,13 +525,13 @@ export default function SaasSuperAdminPage() {
           </h2>
           <p className="text-slate-300 text-sm mb-4">
             Cuando alguien te compra un plan por WhatsApp o transferencia,
-            créalo aquí y se generará su cuenta junto con su primer evento listo
-            para transmitir.
+            créalo aquí con su usuario y contraseña personalizados y se generará
+            su cuenta junto con su primer evento listo para transmitir.
           </p>
 
           <form
             onSubmit={handleCreateOrganizer}
-            className="grid grid-cols-1 md:grid-cols-3 gap-3 bg-slate-950 p-4 rounded-2xl border border-slate-800"
+            className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-3 bg-slate-950 p-4 rounded-2xl border border-slate-800"
           >
             <div>
               <label className="block text-xs font-black uppercase text-slate-400 mb-1">
@@ -461,6 +557,34 @@ export default function SaasSuperAdminPage() {
                 value={companyName}
                 onChange={(e) => setCompanyName(e.target.value)}
                 className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm font-bold text-white"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-black uppercase text-emerald-400 mb-1">
+                Usuario / Correo de Acceso
+              </label>
+              <input
+                type="text"
+                required
+                placeholder="Ej. patricio@bingo.ec"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full bg-slate-900 border-2 border-emerald-500/60 rounded-xl px-3.5 py-2.5 text-sm font-bold text-white"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-black uppercase text-emerald-400 mb-1">
+                Contraseña / Clave de Acceso
+              </label>
+              <input
+                type="text"
+                required
+                placeholder="Ej. PATRICIO2025"
+                value={accessCode}
+                onChange={(e) => setAccessCode(e.target.value)}
+                className="w-full bg-slate-900 border-2 border-emerald-500/60 rounded-xl px-3.5 py-2.5 text-sm font-black text-emerald-300"
               />
             </div>
 
@@ -515,9 +639,9 @@ export default function SaasSuperAdminPage() {
             </div>
 
             <div className="flex items-end gap-2">
-              <div className="w-28">
+              <div className="w-24">
                 <label className="block text-xs font-black uppercase text-slate-400 mb-1">
-                  Precio Tabla
+                  Precio
                 </label>
                 <input
                   type="text"
@@ -530,7 +654,7 @@ export default function SaasSuperAdminPage() {
                 type="submit"
                 className="flex-1 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-2.5 px-4 rounded-xl text-sm shadow-lg cursor-pointer"
               >
-                🚀 Crear Organizador + Evento
+                🚀 Crear Organizador
               </button>
             </div>
           </form>
@@ -571,8 +695,11 @@ export default function SaasSuperAdminPage() {
                       >
                         ● {org.status}
                       </span>
-                      <span className="text-xs font-mono text-slate-400">
-                        Clave Acceso: <strong>{org.accessCode}</strong>
+                      <span className="text-xs font-mono bg-slate-950 border border-slate-700 px-2.5 py-1 rounded-lg text-slate-300">
+                        👤 Usuario: <strong className="text-white">{org.email}</strong>
+                      </span>
+                      <span className="text-xs font-mono bg-slate-950 border border-emerald-600/50 px-2.5 py-1 rounded-lg text-emerald-300">
+                        🔑 Contraseña: <strong>{org.accessCode}</strong>
                       </span>
                     </div>
 
@@ -618,6 +745,18 @@ export default function SaasSuperAdminPage() {
 
                     <button
                       type="button"
+                      onClick={() =>
+                        editingOrgId === org.id
+                          ? setEditingOrgId(null)
+                          : handleStartEditOrganizer(org)
+                      }
+                      className="px-3.5 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs sm:text-sm cursor-pointer"
+                    >
+                      ✏️ Editar / Clave
+                    </button>
+
+                    <button
+                      type="button"
                       onClick={() => setNewEventOrgId(org.id)}
                       className="px-3.5 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-black text-xs sm:text-sm cursor-pointer"
                     >
@@ -635,14 +774,106 @@ export default function SaasSuperAdminPage() {
                       }
                       className={`px-3 py-2 rounded-xl font-bold text-xs cursor-pointer border ${
                         org.status === "ACTIVO"
-                          ? "bg-red-950/60 text-red-300 border-red-700 hover:bg-red-900"
+                          ? "bg-amber-950/60 text-amber-300 border-amber-700 hover:bg-amber-900"
                           : "bg-emerald-950 text-emerald-300 border-emerald-600"
                       }`}
                     >
                       {org.status === "ACTIVO" ? "Suspender" : "Reactivar"}
                     </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteOrganizer(org)}
+                      className="px-3 py-2 rounded-xl font-black text-xs cursor-pointer bg-red-600 hover:bg-red-500 text-white"
+                      title="Eliminar organizador y sus eventos"
+                    >
+                      🗑️ Eliminar
+                    </button>
                   </div>
                 </div>
+
+                {/* Formulario inline para EDITAR datos, usuario y contraseña de este organizador */}
+                {editingOrgId === org.id && (
+                  <form
+                    onSubmit={handleSaveEditOrganizer}
+                    className="bg-slate-950 border-2 border-amber-400 rounded-2xl p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 items-end"
+                  >
+                    <div>
+                      <label className="block text-[11px] font-black uppercase text-amber-300 mb-1">
+                        Nombre Responsable
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={editName}
+                        onChange={(e) => setEditName(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs sm:text-sm font-bold text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-black uppercase text-amber-300 mb-1">
+                        Organización
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={editCompany}
+                        onChange={(e) => setEditCompany(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs sm:text-sm font-bold text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-black uppercase text-emerald-400 mb-1">
+                        Usuario / Correo Login
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={editEmail}
+                        onChange={(e) => setEditEmail(e.target.value)}
+                        className="w-full bg-slate-900 border-2 border-emerald-500/70 rounded-xl px-3 py-2 text-xs sm:text-sm font-bold text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-black uppercase text-emerald-400 mb-1">
+                        Contraseña / Clave
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={editAccessCode}
+                        onChange={(e) => setEditAccessCode(e.target.value)}
+                        className="w-full bg-slate-900 border-2 border-emerald-500/70 rounded-xl px-3 py-2 text-xs sm:text-sm font-black text-emerald-300"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-black uppercase text-slate-400 mb-1">
+                        WhatsApp
+                      </label>
+                      <input
+                        type="text"
+                        value={editPhone}
+                        onChange={(e) => setEditPhone(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs sm:text-sm font-bold text-white"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="submit"
+                        className="flex-1 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black px-3 py-2 rounded-xl text-xs sm:text-sm cursor-pointer"
+                      >
+                        💾 Guardar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditingOrgId(null)}
+                        className="text-slate-400 hover:text-white text-xs font-bold px-2 py-2 cursor-pointer"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  </form>
+                )}
 
                 {/* Formulario inline para crear nuevo evento a este organizador */}
                 {newEventOrgId === org.id && (
@@ -725,11 +956,25 @@ export default function SaasSuperAdminPage() {
                             <span className="text-xs font-mono text-slate-400">
                               ID: {ev.eventId}
                             </span>
-                            {isDefault && (
-                              <span className="bg-emerald-500 text-slate-950 font-black text-[11px] px-2.5 py-0.5 rounded-full">
-                                ● ACTIVO EN CABINA
-                              </span>
-                            )}
+                            <div className="flex items-center gap-1.5">
+                              {isDefault && (
+                                <span className="bg-emerald-500 text-slate-950 font-black text-[11px] px-2.5 py-0.5 rounded-full">
+                                  ● ACTIVO EN CABINA
+                                </span>
+                              )}
+                              {eventsList.length > 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleDeleteEvent(ev.eventId, ev.title)
+                                  }
+                                  className="text-red-400 hover:text-red-300 text-xs font-bold px-1.5 py-0.5 rounded bg-red-950/50 border border-red-800/60 cursor-pointer"
+                                  title="Eliminar este evento"
+                                >
+                                  🗑️
+                                </button>
+                              )}
+                            </div>
                           </div>
                           <h4 className="text-lg font-black text-white mt-1">
                             {ev.title}

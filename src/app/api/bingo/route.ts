@@ -475,8 +475,8 @@ async function handlePostAction(req: NextRequest): Promise<NextResponse> {
       });
     }
 
-    // A4. Cambiar el Plan o Estado de un Organizador (Upgrade de Plan SaaS)
-    if (action === "UPDATE_ORGANIZER_PLAN") {
+    // A4. Cambiar el Plan, Estado o Datos/Credenciales de un Organizador (Upgrade o Edición SaaS)
+    if (action === "UPDATE_ORGANIZER_PLAN" || action === "UPDATE_ORGANIZER") {
       const db = readSaasDb();
       const targetOrg = db.organizers.find((o) => o.id === body.organizerId);
       if (!targetOrg) {
@@ -484,6 +484,25 @@ async function handlePostAction(req: NextRequest): Promise<NextResponse> {
           { ok: false, message: "Organizador no encontrado" },
           { status: 404 }
         );
+      }
+
+      if (body.name !== undefined && String(body.name).trim()) {
+        targetOrg.name = String(body.name).trim();
+      }
+      if (
+        body.organizationName !== undefined &&
+        String(body.organizationName).trim()
+      ) {
+        targetOrg.organizationName = String(body.organizationName).trim();
+      }
+      if (body.email !== undefined && String(body.email).trim()) {
+        targetOrg.email = String(body.email).trim();
+      }
+      if (body.phone !== undefined) {
+        targetOrg.phone = String(body.phone).trim();
+      }
+      if (body.accessCode !== undefined && String(body.accessCode).trim()) {
+        targetOrg.accessCode = String(body.accessCode).trim();
       }
 
       if (body.planId && SAAS_PLANS[body.planId as SaasPlanId]) {
@@ -506,6 +525,86 @@ async function handlePostAction(req: NextRequest): Promise<NextResponse> {
         plan: summary.plan,
         eventsList: summary.eventsList,
         organizers: summary.db.organizers,
+      });
+    }
+
+    // A4-B. Eliminar un Organizador y sus Eventos asociados
+    if (action === "DELETE_ORGANIZER") {
+      const db = readSaasDb();
+      const organizerId = String(body.organizerId || "");
+      const idx = db.organizers.findIndex((o) => o.id === organizerId);
+      if (idx === -1) {
+        return NextResponse.json(
+          { ok: false, message: "Organizador no encontrado" },
+          { status: 404 }
+        );
+      }
+
+      db.organizers.splice(idx, 1);
+      for (const evId of Object.keys(db.events)) {
+        if (db.events[evId].organizerId === organizerId) {
+          delete db.events[evId];
+        }
+      }
+
+      // Si borró el último evento o el activo por defecto, reasignar otro válido
+      const remainingEventIds = Object.keys(db.events);
+      if (
+        remainingEventIds.length > 0 &&
+        !db.events[db.activeDefaultEventId]
+      ) {
+        db.activeDefaultEventId = remainingEventIds[0];
+      }
+
+      writeSaasDb(db);
+      const summary = buildSaasSummary();
+      return NextResponse.json({
+        ok: true,
+        state: summary.state,
+        organizer: summary.organizer,
+        plan: summary.plan,
+        eventsList: summary.eventsList,
+        organizers: summary.db.organizers,
+        activeDefaultEventId: summary.db.activeDefaultEventId,
+      });
+    }
+
+    // A4-C. Eliminar un Evento individual
+    if (action === "DELETE_EVENT") {
+      const db = readSaasDb();
+      const targetEventId = String(body.targetEventId || "");
+      if (!db.events[targetEventId]) {
+        return NextResponse.json(
+          { ok: false, message: "Evento no encontrado" },
+          { status: 404 }
+        );
+      }
+      if (Object.keys(db.events).length <= 1) {
+        return NextResponse.json(
+          {
+            ok: false,
+            message:
+              "Debe existir al menos 1 evento activo en la plataforma.",
+          },
+          { status: 400 }
+        );
+      }
+
+      delete db.events[targetEventId];
+      if (!db.events[db.activeDefaultEventId]) {
+        db.activeDefaultEventId = Object.keys(db.events)[0];
+      }
+
+      writeSaasDb(db);
+      const summary = buildSaasSummary();
+      return NextResponse.json({
+        ok: true,
+        state: summary.state,
+        organizer: summary.organizer,
+        plan: summary.plan,
+        eventsList: summary.eventsList,
+        organizers: summary.db.organizers,
+        activeDefaultEventId: summary.db.activeDefaultEventId,
       });
     }
 
