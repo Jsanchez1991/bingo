@@ -136,6 +136,7 @@ export default function AdminOrganizerPage() {
   const [selAllowedQty, setSelAllowedQty] = useState<number>(3);
   const [selSellerId, setSelSellerId] = useState<string>("");
   const [generatingPool, setGeneratingPool] = useState<boolean>(false);
+  const [sellerStatusMsg, setSellerStatusMsg] = useState<string | null>(null);
 
   // Control de voz en cabina y detección de nuevos reclamos de BINGO
   const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
@@ -454,6 +455,15 @@ export default function AdminOrganizerPage() {
       commissionPercent: newSellerCommission,
     });
     if (res.ok) {
+      const createdSeller = res.newSeller;
+      if (createdSeller?.id) {
+        setAssignSellerId(createdSeller.id);
+        setSelSellerId(createdSeller.id);
+      }
+      setSellerStatusMsg(
+        `✅ Vendedor "${newSellerName}" registrado. Ahora puedes asignarle sus tablas abajo.`
+      );
+      setTimeout(() => setSellerStatusMsg(null), 5000);
       setNewSellerName("");
       setNewSellerPhone("");
       setNewSellerCommission(10);
@@ -1664,15 +1674,65 @@ export default function AdminOrganizerPage() {
                     Si tienes 100 tablas y 2 vendedores, asígnale de la #1 a la #50 al Vendedor 1 y de la #51 a la #100 al Vendedor 2.
                   </p>
 
+                  {sellerStatusMsg && (
+                    <div className="bg-emerald-950 border border-emerald-500 text-emerald-300 px-3 py-2 rounded-xl text-xs font-black">
+                      {sellerStatusMsg}
+                    </div>
+                  )}
+
+                  {/* Creación rápida de vendedor aquí mismo para no tener que bajar a la Sección 5 */}
+                  <div className="bg-slate-900 border border-slate-800 rounded-xl p-2.5 space-y-1.5">
+                    <div className="text-[10px] font-black uppercase text-sky-300">
+                      ➕ Agregar Vendedor Rápido a la Lista:
+                    </div>
+                    <form
+                      onSubmit={handleCreateSeller}
+                      className="grid grid-cols-1 sm:grid-cols-12 gap-1.5"
+                    >
+                      <input
+                        type="text"
+                        required
+                        placeholder="Nombre del vendedor(a)"
+                        value={newSellerName}
+                        onChange={(e) => setNewSellerName(e.target.value)}
+                        className="sm:col-span-5 bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs font-bold text-white"
+                      />
+                      <input
+                        type="text"
+                        placeholder="WhatsApp (opcional)"
+                        value={newSellerPhone}
+                        onChange={(e) => setNewSellerPhone(e.target.value)}
+                        className="sm:col-span-4 bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs font-bold text-white"
+                      />
+                      <button
+                        type="submit"
+                        className="sm:col-span-3 bg-sky-500/20 hover:bg-sky-500 border border-sky-400 text-sky-300 hover:text-slate-950 font-black py-1.5 px-2 rounded-lg text-xs cursor-pointer transition-colors"
+                      >
+                        + Crear Vendedor
+                      </button>
+                    </form>
+                  </div>
+
                   <form
                     onSubmit={async (e) => {
                       e.preventDefault();
-                      await postAction({
+                      const res = await postAction({
                         action: "ASSIGN_CARDS_TO_SELLER",
                         fromNumber: assignFromNum,
                         toNumber: assignToNum,
                         sellerId: assignSellerId,
                       });
+                      if (res.ok) {
+                        const targetSeller = (gameState.sellers || []).find(
+                          (s) => s.id === assignSellerId
+                        );
+                        setSellerStatusMsg(
+                          targetSeller
+                            ? `✅ Se asignaron las tablas #${String(assignFromNum).padStart(5, "0")} a #${String(assignToNum).padStart(5, "0")} al vendedor ${targetSeller.name}.`
+                            : `✅ Se liberaron las tablas #${String(assignFromNum).padStart(5, "0")} a #${String(assignToNum).padStart(5, "0")} a Caja General.`
+                        );
+                        setTimeout(() => setSellerStatusMsg(null), 5000);
+                      }
                     }}
                     className="grid grid-cols-2 sm:grid-cols-4 gap-2 items-end pt-1"
                   >
@@ -1683,7 +1743,7 @@ export default function AdminOrganizerPage() {
                       <input
                         type="number"
                         min={1}
-                        max={totalInPool || 1000}
+                        max={plan?.maxCardsPerEvent || 1000}
                         value={assignFromNum}
                         onChange={(e) =>
                           setAssignFromNum(Math.max(1, Number(e.target.value) || 1))
@@ -1698,7 +1758,7 @@ export default function AdminOrganizerPage() {
                       <input
                         type="number"
                         min={1}
-                        max={totalInPool || 1000}
+                        max={plan?.maxCardsPerEvent || 1000}
                         value={assignToNum}
                         onChange={(e) =>
                           setAssignToNum(Math.max(1, Number(e.target.value) || 50))
@@ -1708,7 +1768,7 @@ export default function AdminOrganizerPage() {
                     </div>
                     <div className="col-span-2">
                       <label className="block text-[10px] font-black uppercase text-sky-300 mb-1">
-                        Vendedor Responsable
+                        Vendedor Responsable {(gameState.sellers || []).length > 0 ? `(${(gameState.sellers || []).length} registrados)` : "(Crea vendedores en Sección 5)"}
                       </label>
                       <select
                         value={assignSellerId}
@@ -1718,7 +1778,7 @@ export default function AdminOrganizerPage() {
                         <option value="">🔓 Libre en Caja General</option>
                         {(gameState.sellers || []).map((s) => (
                           <option key={s.id} value={s.id}>
-                            💼 {s.name}
+                            💼 {s.name} ({s.commissionPercent}% com.)
                           </option>
                         ))}
                       </select>

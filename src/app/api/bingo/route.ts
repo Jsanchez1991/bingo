@@ -831,13 +831,31 @@ async function handlePostAction(req: NextRequest): Promise<NextResponse> {
 
     // A8. Asignar Rango de Tablas (Talonario) a un Vendedor o liberar a Caja General
     if (action === "ASSIGN_CARDS_TO_SELLER") {
-      const targetState = readGameState(requestedEventId);
+      const { state: targetState, plan } = buildSaasSummary(
+        requestedEventId || undefined
+      );
       const fromNumber = Math.max(1, Number(body.fromNumber) || 1);
-      const toNumber = Math.max(fromNumber, Number(body.toNumber) || fromNumber);
+      const toNumber = Math.max(
+        fromNumber,
+        Math.min(plan.maxCardsPerEvent, Number(body.toNumber) || fromNumber)
+      );
       const sellerId = String(body.sellerId || "");
       const sellerObj = (targetState.sellers || []).find(
         (s) => s.id === sellerId
       );
+
+      // Si el rango solicitado supera las tablas actuales del talonario, las pre-generamos automáticamente
+      const maxExistingCardNum = targetState.cards.reduce(
+        (max, c) => Math.max(max, parseInt(c.cardNumber, 10) || 0),
+        0
+      );
+      if (toNumber > maxExistingCardNum) {
+        const autoPoolTarget = Math.min(
+          plan.maxCardsPerEvent,
+          Math.max(toNumber, targetState.pregeneratedPoolSize || 100)
+        );
+        generateNumberedPoolForEvent(targetState, autoPoolTarget);
+      }
 
       let updatedCount = 0;
       for (const card of targetState.cards) {
