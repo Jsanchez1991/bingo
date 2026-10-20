@@ -1,0 +1,2555 @@
+{
+  "version": 2,
+  "activeDefaultEventId": "evt-solidario-01",
+  "organizers": [
+    {
+      "id": "org-01",
+      "name": "Roberto Gómez",
+      "organizationName": "Comité Barrial / Eventos Ecuador",
+      "email": "roberto@bingoecuador.ec",
+      "phone": "0991234567",
+      "accessCode": "ADMIN2025",
+      "planId": "PLAN_PRO",
+      "status": "ACTIVO",
+      "totalPaidUsd": 35,
+      "createdAt": "2026-10-19T20:50:15.420Z"
+    },
+    {
+      "id": "org-02",
+      "name": "Daniela Alvarado",
+      "organizationName": "Bingomanía Live TikTok EC",
+      "email": "daniela@bingolive.ec",
+      "phone": "0987654321",
+      "accessCode": "TIKTOK2025",
+      "planId": "SUSCRIPCION_MENSUAL",
+      "status": "ACTIVO",
+      "totalPaidUsd": 98,
+      "createdAt": "2026-10-19T20:50:15.420Z"
+    },
+    {
+      "id": "org-03",
+      "name": "Comité Padres de Familia",
+      "organizationName": "Unidad Educativa San Francisco",
+      "email": "padres@uesanfrancisco.edu.ec",
+      "phone": "0963344556",
+      "accessCode": "COLEGIO2025",
+      "planId": "DEMO_GRATIS",
+      "status": "ACTIVO",
+      "totalPaidUsd": 0,
+      "createdAt": "2026-10-19T20:50:15.420Z"
+    }
+  ],
+  "events": {
+    "evt-solidario-01": {
+      "eventId": "evt-solidario-01",
+      "organizerId": "org-01",
+      "status": "EN_VIVO",
+      "event": {
+        "title": "GRAN BINGO SOLIDARIO ECUADOR",
+        "organizedBy": "Comité Barrial / Evento Especial",
+        "address": "Transmisión en Vivo por Facebook Live y TikTok",
+        "note": "Conserve su cartón digital o PDF impreso para validación por QR",
+        "dateTimeText": "Domingo 20h00",
+        "phones": "099-123-4567",
+        "priceText": "$2.00",
+        "prizesByTable": {
+          "1": "Canasta de Víveres #1 (Letra B)",
+          "2": "Canasta de Víveres #2 (Letra I)",
+          "3": "Premio Sorpresa $30 (Letra N)",
+          "4": "Electrodoméstico (Letra G)",
+          "5": "Premio Especial $50 (Letra O)",
+          "6": "Gran Premio Mayor $200 (Tabla Llena)"
+        },
+        "prizesByTableStage": {
+          "1": {
+            "LINEA": "$10 en Efectivo",
+            "PUNTA": "$5 / Sorpresa",
+            "ESQUINAS": "$15 en Efectivo",
+            "BINGO_LOCO": "Pollo Hornado",
+            "LETRA": "Canasta de Víveres #1 (Letra B)",
+            "LLENA": "Canasta Familiar #1"
+          },
+          "2": {
+            "LINEA": "$10 en Efectivo",
+            "PUNTA": "$5 / Sorpresa",
+            "ESQUINAS": "$15 en Efectivo",
+            "BINGO_LOCO": "Premio Rápido $10",
+            "LETRA": "Canasta de Víveres #2 (Letra I)",
+            "LLENA": "Canasta Familiar #2"
+          },
+          "3": {
+            "LINEA": "$10 en Efectivo",
+            "PUNTA": "$5 / Sorpresa",
+            "ESQUINAS": "$15 en Efectivo",
+            "BINGO_LOCO": "Premio Rápido $10",
+            "LETRA": "Premio Sorpresa $30 (Letra N)",
+            "LLENA": "Premio Especial $40"
+          },
+          "4": {
+            "LINEA": "$15 en Efectivo",
+            "PUNTA": "$5 / Sorpresa",
+            "ESQUINAS": "$20 en Efectivo",
+            "BINGO_LOCO": "Premio Rápido $15",
+            "LETRA": "Electrodoméstico (Letra G)",
+            "LLENA": "Premio Especial $50"
+          },
+          "5": {
+            "LINEA": "$15 en Efectivo",
+            "PUNTA": "$10 en Efectivo",
+            "ESQUINAS": "$20 en Efectivo",
+            "BINGO_LOCO": "Premio Rápido $15",
+            "LETRA": "Premio Especial $50 (Letra O)",
+            "LLENA": "Premio Especial $80"
+          },
+          "6": {
+            "LINEA": "$25 en Efectivo",
+            "PUNTA": "$10 en Efectivo",
+            "ESQUINAS": "$30 en Efectivo",
+            "BINGO_LOCO": "$20 en Efectivo",
+            "LETRA": "Gran Premio Mayor $200 (Tabla Llena)",
+            "LLENA": "Gran Premio Mayor $200 (Tabla Llena)"
+          }
+        }
+      },
+      "activeTable": 1,
+      "activeStage": "LINEA",
+      "currentPrizeName": "$10 en Efectivo",
+      "drawnBalls": [
+        20,
+        28,
+        64,
+        48,
+        6,
+        47,
+        33,
+        49,
+        9,
+        66,
+        13
+      ],
+      "isPausedForVerification": false,
+      "cards": [
+        {
+          "id": "00001",
+          "cardNumber": "00001",
+          "secretToken": "juego-00001",
+          "buyerName": "María Fernanda López",
+          "buyerPhone": "0991234567",
+          "createdAt": "2026-10-19T20:50:15.421Z",
+          "tables": [
+            {
+              "tableIndex": 1,
+              "serialCode": "00001-1",
+              "grid": [
+                [
+                  12,
+                  29,
+                  36,
+                  52,
+                  65
+                ],
+                [
+                  8,
+                  -1,
+                  -1,
+                  -1,
+                  66
+                ],
+                [
+                  11,
+                  22,
+                  0,
+                  49,
+                  -1
+                ],
+                [
+                  2,
+                  -1,
+                  -1,
+                  -1,
+                  67
+                ],
+                [
+                  6,
+                  26,
+                  31,
+                  57,
+                  71
+                ]
+              ],
+              "signature": "02-06-08-11-12-22-26-29-31-36-49-52-57-65-66-67-71"
+            },
+            {
+              "tableIndex": 2,
+              "serialCode": "00001-2",
+              "grid": [
+                [
+                  15,
+                  26,
+                  38,
+                  48,
+                  75
+                ],
+                [
+                  -1,
+                  -1,
+                  43,
+                  -1,
+                  -1
+                ],
+                [
+                  -1,
+                  -1,
+                  0,
+                  -1,
+                  -1
+                ],
+                [
+                  -1,
+                  -1,
+                  34,
+                  -1,
+                  -1
+                ],
+                [
+                  11,
+                  27,
+                  35,
+                  55,
+                  71
+                ]
+              ],
+              "signature": "11-15-26-27-34-35-38-43-48-55-71-75"
+            },
+            {
+              "tableIndex": 3,
+              "serialCode": "00001-3",
+              "grid": [
+                [
+                  3,
+                  -1,
+                  -1,
+                  -1,
+                  63
+                ],
+                [
+                  8,
+                  28,
+                  -1,
+                  -1,
+                  72
+                ],
+                [
+                  15,
+                  -1,
+                  0,
+                  -1,
+                  71
+                ],
+                [
+                  10,
+                  -1,
+                  -1,
+                  57,
+                  64
+                ],
+                [
+                  11,
+                  -1,
+                  -1,
+                  -1,
+                  61
+                ]
+              ],
+              "signature": "03-08-10-11-15-28-57-61-63-64-71-72"
+            },
+            {
+              "tableIndex": 4,
+              "serialCode": "00001-4",
+              "grid": [
+                [
+                  5,
+                  17,
+                  39,
+                  52,
+                  72
+                ],
+                [
+                  13,
+                  -1,
+                  -1,
+                  -1,
+                  -1
+                ],
+                [
+                  4,
+                  -1,
+                  0,
+                  47,
+                  64
+                ],
+                [
+                  11,
+                  -1,
+                  -1,
+                  -1,
+                  69
+                ],
+                [
+                  7,
+                  24,
+                  33,
+                  57,
+                  62
+                ]
+              ],
+              "signature": "04-05-07-11-13-17-24-33-39-47-52-57-62-64-69-72"
+            },
+            {
+              "tableIndex": 5,
+              "serialCode": "00001-5",
+              "grid": [
+                [
+                  8,
+                  28,
+                  41,
+                  59,
+                  63
+                ],
+                [
+                  3,
+                  -1,
+                  -1,
+                  -1,
+                  61
+                ],
+                [
+                  10,
+                  -1,
+                  0,
+                  -1,
+                  66
+                ],
+                [
+                  12,
+                  -1,
+                  -1,
+                  -1,
+                  65
+                ],
+                [
+                  7,
+                  24,
+                  32,
+                  56,
+                  70
+                ]
+              ],
+              "signature": "03-07-08-10-12-24-28-32-41-56-59-61-63-65-66-70"
+            },
+            {
+              "tableIndex": 6,
+              "serialCode": "00001-6",
+              "grid": [
+                [
+                  8,
+                  25,
+                  43,
+                  59,
+                  71
+                ],
+                [
+                  10,
+                  19,
+                  35,
+                  54,
+                  61
+                ],
+                [
+                  6,
+                  26,
+                  0,
+                  46,
+                  66
+                ],
+                [
+                  7,
+                  16,
+                  34,
+                  58,
+                  70
+                ],
+                [
+                  3,
+                  17,
+                  38,
+                  49,
+                  74
+                ]
+              ],
+              "signature": "03-06-07-08-10-16-17-19-25-26-34-35-38-43-46-49-54-58-59-61-66-70-71-74"
+            }
+          ],
+          "markedByTable": {
+            "1": [
+              6,
+              49,
+              66
+            ],
+            "2": [],
+            "3": [],
+            "4": [],
+            "5": [],
+            "6": []
+          },
+          "sessionLock": {
+            "deviceId": "DEV-OTN6VS9N-MVG0ZTDY",
+            "ipAddress": "::1",
+            "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36",
+            "lockedAt": "2026-10-20T01:50:35.199Z",
+            "lastSeenAt": "2026-10-20T02:25:42.919Z"
+          },
+          "eventId": "evt-solidario-01",
+          "soldBySellerId": "sel-01",
+          "soldBySellerName": "Juan Carlos Pérez (Comisionista #1)"
+        },
+        {
+          "id": "00002",
+          "cardNumber": "00002",
+          "secretToken": "juego-00001",
+          "buyerName": "María Fernanda López",
+          "buyerPhone": "0991234567",
+          "createdAt": "2026-10-19T20:50:15.421Z",
+          "tables": [
+            {
+              "tableIndex": 1,
+              "serialCode": "00002-1",
+              "grid": [
+                [
+                  9,
+                  25,
+                  31,
+                  52,
+                  62
+                ],
+                [
+                  8,
+                  -1,
+                  -1,
+                  -1,
+                  74
+                ],
+                [
+                  4,
+                  30,
+                  0,
+                  50,
+                  -1
+                ],
+                [
+                  15,
+                  -1,
+                  -1,
+                  -1,
+                  66
+                ],
+                [
+                  14,
+                  23,
+                  44,
+                  55,
+                  68
+                ]
+              ],
+              "signature": "04-08-09-14-15-23-25-30-31-44-50-52-55-62-66-68-74"
+            },
+            {
+              "tableIndex": 2,
+              "serialCode": "00002-2",
+              "grid": [
+                [
+                  13,
+                  25,
+                  36,
+                  51,
+                  72
+                ],
+                [
+                  -1,
+                  -1,
+                  34,
+                  -1,
+                  -1
+                ],
+                [
+                  -1,
+                  -1,
+                  0,
+                  -1,
+                  -1
+                ],
+                [
+                  -1,
+                  -1,
+                  39,
+                  -1,
+                  -1
+                ],
+                [
+                  7,
+                  22,
+                  40,
+                  57,
+                  73
+                ]
+              ],
+              "signature": "07-13-22-25-34-36-39-40-51-57-72-73"
+            },
+            {
+              "tableIndex": 3,
+              "serialCode": "00002-3",
+              "grid": [
+                [
+                  10,
+                  -1,
+                  -1,
+                  -1,
+                  72
+                ],
+                [
+                  1,
+                  30,
+                  -1,
+                  -1,
+                  70
+                ],
+                [
+                  15,
+                  -1,
+                  0,
+                  -1,
+                  73
+                ],
+                [
+                  14,
+                  -1,
+                  -1,
+                  52,
+                  75
+                ],
+                [
+                  6,
+                  -1,
+                  -1,
+                  -1,
+                  63
+                ]
+              ],
+              "signature": "01-06-10-14-15-30-52-63-70-72-73-75"
+            },
+            {
+              "tableIndex": 4,
+              "serialCode": "00002-4",
+              "grid": [
+                [
+                  10,
+                  18,
+                  36,
+                  46,
+                  66
+                ],
+                [
+                  11,
+                  -1,
+                  -1,
+                  -1,
+                  -1
+                ],
+                [
+                  13,
+                  -1,
+                  0,
+                  54,
+                  61
+                ],
+                [
+                  1,
+                  -1,
+                  -1,
+                  -1,
+                  74
+                ],
+                [
+                  5,
+                  19,
+                  42,
+                  48,
+                  71
+                ]
+              ],
+              "signature": "01-05-10-11-13-18-19-36-42-46-48-54-61-66-71-74"
+            },
+            {
+              "tableIndex": 5,
+              "serialCode": "00002-5",
+              "grid": [
+                [
+                  13,
+                  16,
+                  42,
+                  46,
+                  62
+                ],
+                [
+                  10,
+                  -1,
+                  -1,
+                  -1,
+                  70
+                ],
+                [
+                  14,
+                  -1,
+                  0,
+                  -1,
+                  71
+                ],
+                [
+                  2,
+                  -1,
+                  -1,
+                  -1,
+                  61
+                ],
+                [
+                  1,
+                  26,
+                  41,
+                  58,
+                  65
+                ]
+              ],
+              "signature": "01-02-10-13-14-16-26-41-42-46-58-61-62-65-70-71"
+            },
+            {
+              "tableIndex": 6,
+              "serialCode": "00002-6",
+              "grid": [
+                [
+                  2,
+                  22,
+                  43,
+                  59,
+                  66
+                ],
+                [
+                  5,
+                  16,
+                  41,
+                  58,
+                  70
+                ],
+                [
+                  8,
+                  23,
+                  0,
+                  53,
+                  73
+                ],
+                [
+                  13,
+                  18,
+                  37,
+                  49,
+                  62
+                ],
+                [
+                  14,
+                  20,
+                  42,
+                  55,
+                  75
+                ]
+              ],
+              "signature": "02-05-08-13-14-16-18-20-22-23-37-41-42-43-49-53-55-58-59-62-66-70-73-75"
+            }
+          ],
+          "markedByTable": {
+            "1": [
+              9,
+              66
+            ],
+            "2": [],
+            "3": [],
+            "4": [],
+            "5": [],
+            "6": []
+          },
+          "sessionLock": {
+            "deviceId": "DEV-OTN6VS9N-MVG0ZTDY",
+            "ipAddress": "::1",
+            "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36",
+            "lockedAt": "2026-10-20T01:50:35.199Z",
+            "lastSeenAt": "2026-10-20T02:25:42.919Z"
+          },
+          "eventId": "evt-solidario-01",
+          "soldBySellerId": "sel-01",
+          "soldBySellerName": "Juan Carlos Pérez (Comisionista #1)"
+        },
+        {
+          "id": "00003",
+          "cardNumber": "00003",
+          "secretToken": "juego-00002",
+          "buyerName": "Carlos Andrés Zambrano",
+          "buyerPhone": "0987654321",
+          "createdAt": "2026-10-19T20:50:15.421Z",
+          "tables": [
+            {
+              "tableIndex": 1,
+              "serialCode": "00003-1",
+              "grid": [
+                [
+                  12,
+                  28,
+                  37,
+                  46,
+                  64
+                ],
+                [
+                  2,
+                  -1,
+                  -1,
+                  -1,
+                  75
+                ],
+                [
+                  5,
+                  22,
+                  0,
+                  47,
+                  -1
+                ],
+                [
+                  10,
+                  -1,
+                  -1,
+                  -1,
+                  63
+                ],
+                [
+                  8,
+                  21,
+                  35,
+                  59,
+                  70
+                ]
+              ],
+              "signature": "02-05-08-10-12-21-22-28-35-37-46-47-59-63-64-70-75"
+            },
+            {
+              "tableIndex": 2,
+              "serialCode": "00003-2",
+              "grid": [
+                [
+                  12,
+                  17,
+                  37,
+                  53,
+                  63
+                ],
+                [
+                  -1,
+                  -1,
+                  39,
+                  -1,
+                  -1
+                ],
+                [
+                  -1,
+                  -1,
+                  0,
+                  -1,
+                  -1
+                ],
+                [
+                  -1,
+                  -1,
+                  38,
+                  -1,
+                  -1
+                ],
+                [
+                  8,
+                  21,
+                  31,
+                  56,
+                  75
+                ]
+              ],
+              "signature": "08-12-17-21-31-37-38-39-53-56-63-75"
+            },
+            {
+              "tableIndex": 3,
+              "serialCode": "00003-3",
+              "grid": [
+                [
+                  4,
+                  -1,
+                  -1,
+                  -1,
+                  74
+                ],
+                [
+                  8,
+                  20,
+                  -1,
+                  -1,
+                  68
+                ],
+                [
+                  12,
+                  -1,
+                  0,
+                  -1,
+                  65
+                ],
+                [
+                  9,
+                  -1,
+                  -1,
+                  52,
+                  62
+                ],
+                [
+                  2,
+                  -1,
+                  -1,
+                  -1,
+                  70
+                ]
+              ],
+              "signature": "02-04-08-09-12-20-52-62-65-68-70-74"
+            },
+            {
+              "tableIndex": 4,
+              "serialCode": "00003-4",
+              "grid": [
+                [
+                  15,
+                  30,
+                  32,
+                  60,
+                  67
+                ],
+                [
+                  6,
+                  -1,
+                  -1,
+                  -1,
+                  -1
+                ],
+                [
+                  8,
+                  -1,
+                  0,
+                  54,
+                  75
+                ],
+                [
+                  3,
+                  -1,
+                  -1,
+                  -1,
+                  71
+                ],
+                [
+                  4,
+                  29,
+                  42,
+                  49,
+                  70
+                ]
+              ],
+              "signature": "03-04-06-08-15-29-30-32-42-49-54-60-67-70-71-75"
+            },
+            {
+              "tableIndex": 5,
+              "serialCode": "00003-5",
+              "grid": [
+                [
+                  8,
+                  27,
+                  44,
+                  52,
+                  64
+                ],
+                [
+                  3,
+                  -1,
+                  -1,
+                  -1,
+                  70
+                ],
+                [
+                  11,
+                  -1,
+                  0,
+                  -1,
+                  67
+                ],
+                [
+                  1,
+                  -1,
+                  -1,
+                  -1,
+                  62
+                ],
+                [
+                  14,
+                  26,
+                  32,
+                  56,
+                  74
+                ]
+              ],
+              "signature": "01-03-08-11-14-26-27-32-44-52-56-62-64-67-70-74"
+            },
+            {
+              "tableIndex": 6,
+              "serialCode": "00003-6",
+              "grid": [
+                [
+                  15,
+                  17,
+                  33,
+                  59,
+                  69
+                ],
+                [
+                  9,
+                  21,
+                  37,
+                  54,
+                  75
+                ],
+                [
+                  11,
+                  23,
+                  0,
+                  55,
+                  73
+                ],
+                [
+                  6,
+                  29,
+                  41,
+                  49,
+                  61
+                ],
+                [
+                  2,
+                  18,
+                  36,
+                  51,
+                  65
+                ]
+              ],
+              "signature": "02-06-09-11-15-17-18-21-23-29-33-36-37-41-49-51-54-55-59-61-65-69-73-75"
+            }
+          ],
+          "markedByTable": {
+            "1": [],
+            "2": [],
+            "3": [],
+            "4": [],
+            "5": [],
+            "6": []
+          },
+          "sessionLock": null,
+          "eventId": "evt-solidario-01",
+          "soldBySellerId": "sel-02",
+          "soldBySellerName": "Doña Carmen Andrade (Directiva)"
+        },
+        {
+          "id": "00004",
+          "cardNumber": "00004",
+          "secretToken": "juego-00003",
+          "buyerName": "Rosa Elena Vera",
+          "buyerPhone": "0963344556",
+          "createdAt": "2026-10-19T20:50:15.422Z",
+          "tables": [
+            {
+              "tableIndex": 1,
+              "serialCode": "00004-1",
+              "grid": [
+                [
+                  7,
+                  24,
+                  41,
+                  59,
+                  71
+                ],
+                [
+                  14,
+                  -1,
+                  -1,
+                  -1,
+                  66
+                ],
+                [
+                  2,
+                  22,
+                  0,
+                  56,
+                  -1
+                ],
+                [
+                  13,
+                  -1,
+                  -1,
+                  -1,
+                  72
+                ],
+                [
+                  9,
+                  16,
+                  45,
+                  47,
+                  67
+                ]
+              ],
+              "signature": "02-07-09-13-14-16-22-24-41-45-47-56-59-66-67-71-72"
+            },
+            {
+              "tableIndex": 2,
+              "serialCode": "00004-2",
+              "grid": [
+                [
+                  11,
+                  19,
+                  36,
+                  46,
+                  62
+                ],
+                [
+                  -1,
+                  -1,
+                  31,
+                  -1,
+                  -1
+                ],
+                [
+                  -1,
+                  -1,
+                  0,
+                  -1,
+                  -1
+                ],
+                [
+                  -1,
+                  -1,
+                  33,
+                  -1,
+                  -1
+                ],
+                [
+                  3,
+                  28,
+                  45,
+                  59,
+                  66
+                ]
+              ],
+              "signature": "03-11-19-28-31-33-36-45-46-59-62-66"
+            },
+            {
+              "tableIndex": 3,
+              "serialCode": "00004-3",
+              "grid": [
+                [
+                  13,
+                  -1,
+                  -1,
+                  -1,
+                  70
+                ],
+                [
+                  3,
+                  17,
+                  -1,
+                  -1,
+                  64
+                ],
+                [
+                  11,
+                  -1,
+                  0,
+                  -1,
+                  66
+                ],
+                [
+                  2,
+                  -1,
+                  -1,
+                  57,
+                  63
+                ],
+                [
+                  8,
+                  -1,
+                  -1,
+                  -1,
+                  71
+                ]
+              ],
+              "signature": "02-03-08-11-13-17-57-63-64-66-70-71"
+            },
+            {
+              "tableIndex": 4,
+              "serialCode": "00004-4",
+              "grid": [
+                [
+                  1,
+                  22,
+                  38,
+                  48,
+                  69
+                ],
+                [
+                  10,
+                  -1,
+                  -1,
+                  -1,
+                  -1
+                ],
+                [
+                  7,
+                  -1,
+                  0,
+                  51,
+                  61
+                ],
+                [
+                  9,
+                  -1,
+                  -1,
+                  -1,
+                  64
+                ],
+                [
+                  6,
+                  23,
+                  44,
+                  58,
+                  70
+                ]
+              ],
+              "signature": "01-06-07-09-10-22-23-38-44-48-51-58-61-64-69-70"
+            },
+            {
+              "tableIndex": 5,
+              "serialCode": "00004-5",
+              "grid": [
+                [
+                  2,
+                  28,
+                  34,
+                  51,
+                  72
+                ],
+                [
+                  5,
+                  -1,
+                  -1,
+                  -1,
+                  69
+                ],
+                [
+                  3,
+                  -1,
+                  0,
+                  -1,
+                  62
+                ],
+                [
+                  10,
+                  -1,
+                  -1,
+                  -1,
+                  61
+                ],
+                [
+                  7,
+                  18,
+                  44,
+                  53,
+                  70
+                ]
+              ],
+              "signature": "02-03-05-07-10-18-28-34-44-51-53-61-62-69-70-72"
+            },
+            {
+              "tableIndex": 6,
+              "serialCode": "00004-6",
+              "grid": [
+                [
+                  11,
+                  26,
+                  42,
+                  58,
+                  74
+                ],
+                [
+                  3,
+                  21,
+                  38,
+                  50,
+                  70
+                ],
+                [
+                  10,
+                  30,
+                  0,
+                  56,
+                  68
+                ],
+                [
+                  7,
+                  20,
+                  41,
+                  47,
+                  69
+                ],
+                [
+                  2,
+                  23,
+                  39,
+                  52,
+                  67
+                ]
+              ],
+              "signature": "02-03-07-10-11-20-21-23-26-30-38-39-41-42-47-50-52-56-58-67-68-69-70-74"
+            }
+          ],
+          "markedByTable": {
+            "1": [],
+            "2": [],
+            "3": [],
+            "4": [],
+            "5": [],
+            "6": []
+          },
+          "sessionLock": null,
+          "eventId": "evt-solidario-01",
+          "soldBySellerId": "sel-02",
+          "soldBySellerName": "Doña Carmen Andrade (Directiva)"
+        },
+        {
+          "id": "00005",
+          "cardNumber": "00005",
+          "secretToken": "juego-00003",
+          "buyerName": "Rosa Elena Vera",
+          "buyerPhone": "0963344556",
+          "createdAt": "2026-10-19T20:50:15.422Z",
+          "tables": [
+            {
+              "tableIndex": 1,
+              "serialCode": "00005-1",
+              "grid": [
+                [
+                  11,
+                  28,
+                  31,
+                  58,
+                  63
+                ],
+                [
+                  3,
+                  -1,
+                  -1,
+                  -1,
+                  73
+                ],
+                [
+                  9,
+                  19,
+                  0,
+                  59,
+                  -1
+                ],
+                [
+                  2,
+                  -1,
+                  -1,
+                  -1,
+                  67
+                ],
+                [
+                  14,
+                  24,
+                  43,
+                  53,
+                  68
+                ]
+              ],
+              "signature": "02-03-09-11-14-19-24-28-31-43-53-58-59-63-67-68-73"
+            },
+            {
+              "tableIndex": 2,
+              "serialCode": "00005-2",
+              "grid": [
+                [
+                  13,
+                  17,
+                  44,
+                  60,
+                  70
+                ],
+                [
+                  -1,
+                  -1,
+                  37,
+                  -1,
+                  -1
+                ],
+                [
+                  -1,
+                  -1,
+                  0,
+                  -1,
+                  -1
+                ],
+                [
+                  -1,
+                  -1,
+                  40,
+                  -1,
+                  -1
+                ],
+                [
+                  8,
+                  26,
+                  32,
+                  57,
+                  69
+                ]
+              ],
+              "signature": "08-13-17-26-32-37-40-44-57-60-69-70"
+            },
+            {
+              "tableIndex": 3,
+              "serialCode": "00005-3",
+              "grid": [
+                [
+                  7,
+                  -1,
+                  -1,
+                  -1,
+                  74
+                ],
+                [
+                  5,
+                  30,
+                  -1,
+                  -1,
+                  66
+                ],
+                [
+                  10,
+                  -1,
+                  0,
+                  -1,
+                  69
+                ],
+                [
+                  9,
+                  -1,
+                  -1,
+                  57,
+                  73
+                ],
+                [
+                  15,
+                  -1,
+                  -1,
+                  -1,
+                  71
+                ]
+              ],
+              "signature": "05-07-09-10-15-30-57-66-69-71-73-74"
+            },
+            {
+              "tableIndex": 4,
+              "serialCode": "00005-4",
+              "grid": [
+                [
+                  13,
+                  19,
+                  43,
+                  57,
+                  68
+                ],
+                [
+                  10,
+                  -1,
+                  -1,
+                  -1,
+                  -1
+                ],
+                [
+                  5,
+                  -1,
+                  0,
+                  59,
+                  67
+                ],
+                [
+                  15,
+                  -1,
+                  -1,
+                  -1,
+                  75
+                ],
+                [
+                  14,
+                  16,
+                  41,
+                  49,
+                  64
+                ]
+              ],
+              "signature": "05-10-13-14-15-16-19-41-43-49-57-59-64-67-68-75"
+            },
+            {
+              "tableIndex": 5,
+              "serialCode": "00005-5",
+              "grid": [
+                [
+                  3,
+                  29,
+                  38,
+                  56,
+                  73
+                ],
+                [
+                  14,
+                  -1,
+                  -1,
+                  -1,
+                  71
+                ],
+                [
+                  9,
+                  -1,
+                  0,
+                  -1,
+                  70
+                ],
+                [
+                  11,
+                  -1,
+                  -1,
+                  -1,
+                  72
+                ],
+                [
+                  13,
+                  17,
+                  44,
+                  52,
+                  61
+                ]
+              ],
+              "signature": "03-09-11-13-14-17-29-38-44-52-56-61-70-71-72-73"
+            },
+            {
+              "tableIndex": 6,
+              "serialCode": "00005-6",
+              "grid": [
+                [
+                  10,
+                  29,
+                  31,
+                  51,
+                  61
+                ],
+                [
+                  1,
+                  22,
+                  33,
+                  53,
+                  65
+                ],
+                [
+                  12,
+                  28,
+                  0,
+                  48,
+                  75
+                ],
+                [
+                  9,
+                  23,
+                  34,
+                  60,
+                  73
+                ],
+                [
+                  8,
+                  20,
+                  45,
+                  47,
+                  69
+                ]
+              ],
+              "signature": "01-08-09-10-12-20-22-23-28-29-31-33-34-45-47-48-51-53-60-61-65-69-73-75"
+            }
+          ],
+          "markedByTable": {
+            "1": [],
+            "2": [],
+            "3": [],
+            "4": [],
+            "5": [],
+            "6": []
+          },
+          "sessionLock": null,
+          "eventId": "evt-solidario-01",
+          "soldBySellerId": "sel-02",
+          "soldBySellerName": "Doña Carmen Andrade (Directiva)"
+        },
+        {
+          "id": "00006",
+          "cardNumber": "00006",
+          "secretToken": "juego-00003",
+          "buyerName": "Rosa Elena Vera",
+          "buyerPhone": "0963344556",
+          "createdAt": "2026-10-19T20:50:15.422Z",
+          "tables": [
+            {
+              "tableIndex": 1,
+              "serialCode": "00006-1",
+              "grid": [
+                [
+                  2,
+                  29,
+                  45,
+                  55,
+                  74
+                ],
+                [
+                  9,
+                  -1,
+                  -1,
+                  -1,
+                  69
+                ],
+                [
+                  13,
+                  28,
+                  0,
+                  58,
+                  -1
+                ],
+                [
+                  11,
+                  -1,
+                  -1,
+                  -1,
+                  73
+                ],
+                [
+                  5,
+                  17,
+                  41,
+                  56,
+                  71
+                ]
+              ],
+              "signature": "02-05-09-11-13-17-28-29-41-45-55-56-58-69-71-73-74"
+            },
+            {
+              "tableIndex": 2,
+              "serialCode": "00006-2",
+              "grid": [
+                [
+                  5,
+                  30,
+                  37,
+                  60,
+                  68
+                ],
+                [
+                  -1,
+                  -1,
+                  35,
+                  -1,
+                  -1
+                ],
+                [
+                  -1,
+                  -1,
+                  0,
+                  -1,
+                  -1
+                ],
+                [
+                  -1,
+                  -1,
+                  36,
+                  -1,
+                  -1
+                ],
+                [
+                  8,
+                  22,
+                  33,
+                  50,
+                  74
+                ]
+              ],
+              "signature": "05-08-22-30-33-35-36-37-50-60-68-74"
+            },
+            {
+              "tableIndex": 3,
+              "serialCode": "00006-3",
+              "grid": [
+                [
+                  13,
+                  -1,
+                  -1,
+                  -1,
+                  64
+                ],
+                [
+                  6,
+                  19,
+                  -1,
+                  -1,
+                  63
+                ],
+                [
+                  14,
+                  -1,
+                  0,
+                  -1,
+                  65
+                ],
+                [
+                  4,
+                  -1,
+                  -1,
+                  51,
+                  75
+                ],
+                [
+                  9,
+                  -1,
+                  -1,
+                  -1,
+                  72
+                ]
+              ],
+              "signature": "04-06-09-13-14-19-51-63-64-65-72-75"
+            },
+            {
+              "tableIndex": 4,
+              "serialCode": "00006-4",
+              "grid": [
+                [
+                  11,
+                  18,
+                  40,
+                  58,
+                  62
+                ],
+                [
+                  2,
+                  -1,
+                  -1,
+                  -1,
+                  -1
+                ],
+                [
+                  8,
+                  -1,
+                  0,
+                  51,
+                  64
+                ],
+                [
+                  4,
+                  -1,
+                  -1,
+                  -1,
+                  73
+                ],
+                [
+                  13,
+                  16,
+                  31,
+                  56,
+                  66
+                ]
+              ],
+              "signature": "02-04-08-11-13-16-18-31-40-51-56-58-62-64-66-73"
+            },
+            {
+              "tableIndex": 5,
+              "serialCode": "00006-5",
+              "grid": [
+                [
+                  7,
+                  29,
+                  32,
+                  54,
+                  71
+                ],
+                [
+                  8,
+                  -1,
+                  -1,
+                  -1,
+                  69
+                ],
+                [
+                  1,
+                  -1,
+                  0,
+                  -1,
+                  74
+                ],
+                [
+                  15,
+                  -1,
+                  -1,
+                  -1,
+                  73
+                ],
+                [
+                  14,
+                  24,
+                  31,
+                  58,
+                  61
+                ]
+              ],
+              "signature": "01-07-08-14-15-24-29-31-32-54-58-61-69-71-73-74"
+            },
+            {
+              "tableIndex": 6,
+              "serialCode": "00006-6",
+              "grid": [
+                [
+                  6,
+                  26,
+                  44,
+                  56,
+                  69
+                ],
+                [
+                  11,
+                  29,
+                  41,
+                  50,
+                  61
+                ],
+                [
+                  3,
+                  25,
+                  0,
+                  59,
+                  64
+                ],
+                [
+                  5,
+                  27,
+                  35,
+                  51,
+                  72
+                ],
+                [
+                  9,
+                  19,
+                  31,
+                  54,
+                  65
+                ]
+              ],
+              "signature": "03-05-06-09-11-19-25-26-27-29-31-35-41-44-50-51-54-56-59-61-64-65-69-72"
+            }
+          ],
+          "markedByTable": {
+            "1": [],
+            "2": [],
+            "3": [],
+            "4": [],
+            "5": [],
+            "6": []
+          },
+          "sessionLock": null,
+          "eventId": "evt-solidario-01",
+          "soldBySellerId": "sel-02",
+          "soldBySellerName": "Doña Carmen Andrade (Directiva)"
+        }
+      ],
+      "claims": [],
+      "tieBreak": null,
+      "winnersHistory": [],
+      "sellers": [
+        {
+          "id": "sel-01",
+          "sellerCode": "vendedor-juan",
+          "name": "Juan Carlos Pérez (Comisionista #1)",
+          "phone": "0998887766",
+          "commissionPercent": 10,
+          "active": true,
+          "createdAt": "2026-10-19T20:50:15.420Z"
+        },
+        {
+          "id": "sel-02",
+          "sellerCode": "vendedora-carmen",
+          "name": "Doña Carmen Andrade (Directiva)",
+          "phone": "0981122334",
+          "commissionPercent": 15,
+          "active": true,
+          "createdAt": "2026-10-19T20:50:15.420Z"
+        }
+      ],
+      "updatedAt": "2026-10-20T02:25:42.924Z"
+    },
+    "evt-tiktok-02": {
+      "eventId": "evt-tiktok-02",
+      "organizerId": "org-02",
+      "status": "EN_VIVO",
+      "event": {
+        "title": "SUPER BINGO TIKTOK EN VIVO $500",
+        "organizedBy": "Bingomanía Live TikTok EC",
+        "address": "Transmisión en Vivo por Facebook Live y TikTok",
+        "note": "Conserve su cartón digital o PDF impreso para validación por QR",
+        "dateTimeText": "Viernes 21h00",
+        "phones": "098-765-4321",
+        "priceText": "$3.00",
+        "prizesByTable": {
+          "1": "Premio Tabla #1 (Letra B)",
+          "2": "Premio Tabla #2 (Letra I)",
+          "3": "Premio Tabla #3 (Letra N)",
+          "4": "Premio Tabla #4 (Letra G)",
+          "5": "Premio Tabla #5 (Letra O)",
+          "6": "Gran Premio Mayor (Tabla Llena)"
+        },
+        "prizesByTableStage": {
+          "1": {
+            "LINEA": "$10 en Efectivo",
+            "PUNTA": "$5 / Sorpresa",
+            "ESQUINAS": "$15 en Efectivo",
+            "BINGO_LOCO": "Pollo Hornado",
+            "LETRA": "Canasta de Víveres #1 (Letra B)",
+            "LLENA": "Canasta Familiar #1"
+          },
+          "2": {
+            "LINEA": "$10 en Efectivo",
+            "PUNTA": "$5 / Sorpresa",
+            "ESQUINAS": "$15 en Efectivo",
+            "BINGO_LOCO": "Premio Rápido $10",
+            "LETRA": "Canasta de Víveres #2 (Letra I)",
+            "LLENA": "Canasta Familiar #2"
+          },
+          "3": {
+            "LINEA": "$10 en Efectivo",
+            "PUNTA": "$5 / Sorpresa",
+            "ESQUINAS": "$15 en Efectivo",
+            "BINGO_LOCO": "Premio Rápido $10",
+            "LETRA": "Premio Sorpresa $30 (Letra N)",
+            "LLENA": "Premio Especial $40"
+          },
+          "4": {
+            "LINEA": "$15 en Efectivo",
+            "PUNTA": "$5 / Sorpresa",
+            "ESQUINAS": "$20 en Efectivo",
+            "BINGO_LOCO": "Premio Rápido $15",
+            "LETRA": "Electrodoméstico (Letra G)",
+            "LLENA": "Premio Especial $50"
+          },
+          "5": {
+            "LINEA": "$15 en Efectivo",
+            "PUNTA": "$10 en Efectivo",
+            "ESQUINAS": "$20 en Efectivo",
+            "BINGO_LOCO": "Premio Rápido $15",
+            "LETRA": "Premio Especial $50 (Letra O)",
+            "LLENA": "Premio Especial $80"
+          },
+          "6": {
+            "LINEA": "$25 en Efectivo",
+            "PUNTA": "$10 en Efectivo",
+            "ESQUINAS": "$30 en Efectivo",
+            "BINGO_LOCO": "$20 en Efectivo",
+            "LETRA": "Gran Premio Mayor $200 (Tabla Llena)",
+            "LLENA": "Gran Premio Mayor $200 (Tabla Llena)"
+          }
+        }
+      },
+      "activeTable": 1,
+      "activeStage": "LETRA",
+      "currentPrizeName": "Canasta de Víveres #1 (Letra B)",
+      "drawnBalls": [],
+      "isPausedForVerification": false,
+      "cards": [
+        {
+          "id": "00001",
+          "cardNumber": "00001",
+          "secretToken": "evt-tiktok-02-00001",
+          "buyerName": "Cliente Demo #1",
+          "buyerPhone": "0990001111",
+          "createdAt": "2026-10-19T20:50:15.423Z",
+          "tables": [
+            {
+              "tableIndex": 1,
+              "serialCode": "00001-1",
+              "grid": [
+                [
+                  13,
+                  24,
+                  33,
+                  53,
+                  70
+                ],
+                [
+                  12,
+                  -1,
+                  -1,
+                  -1,
+                  67
+                ],
+                [
+                  15,
+                  17,
+                  0,
+                  48,
+                  -1
+                ],
+                [
+                  9,
+                  -1,
+                  -1,
+                  -1,
+                  75
+                ],
+                [
+                  3,
+                  25,
+                  42,
+                  49,
+                  68
+                ]
+              ],
+              "signature": "03-09-12-13-15-17-24-25-33-42-48-49-53-67-68-70-75"
+            },
+            {
+              "tableIndex": 2,
+              "serialCode": "00001-2",
+              "grid": [
+                [
+                  14,
+                  26,
+                  38,
+                  51,
+                  64
+                ],
+                [
+                  -1,
+                  -1,
+                  41,
+                  -1,
+                  -1
+                ],
+                [
+                  -1,
+                  -1,
+                  0,
+                  -1,
+                  -1
+                ],
+                [
+                  -1,
+                  -1,
+                  43,
+                  -1,
+                  -1
+                ],
+                [
+                  13,
+                  25,
+                  44,
+                  60,
+                  72
+                ]
+              ],
+              "signature": "13-14-25-26-38-41-43-44-51-60-64-72"
+            },
+            {
+              "tableIndex": 3,
+              "serialCode": "00001-3",
+              "grid": [
+                [
+                  4,
+                  -1,
+                  -1,
+                  -1,
+                  64
+                ],
+                [
+                  15,
+                  22,
+                  -1,
+                  -1,
+                  75
+                ],
+                [
+                  10,
+                  -1,
+                  0,
+                  -1,
+                  63
+                ],
+                [
+                  3,
+                  -1,
+                  -1,
+                  46,
+                  73
+                ],
+                [
+                  11,
+                  -1,
+                  -1,
+                  -1,
+                  67
+                ]
+              ],
+              "signature": "03-04-10-11-15-22-46-63-64-67-73-75"
+            },
+            {
+              "tableIndex": 4,
+              "serialCode": "00001-4",
+              "grid": [
+                [
+                  8,
+                  30,
+                  40,
+                  47,
+                  73
+                ],
+                [
+                  1,
+                  -1,
+                  -1,
+                  -1,
+                  -1
+                ],
+                [
+                  11,
+                  -1,
+                  0,
+                  46,
+                  70
+                ],
+                [
+                  10,
+                  -1,
+                  -1,
+                  -1,
+                  63
+                ],
+                [
+                  6,
+                  16,
+                  34,
+                  52,
+                  72
+                ]
+              ],
+              "signature": "01-06-08-10-11-16-30-34-40-46-47-52-63-70-72-73"
+            },
+            {
+              "tableIndex": 5,
+              "serialCode": "00001-5",
+              "grid": [
+                [
+                  8,
+                  21,
+                  38,
+                  60,
+                  63
+                ],
+                [
+                  3,
+                  -1,
+                  -1,
+                  -1,
+                  71
+                ],
+                [
+                  15,
+                  -1,
+                  0,
+                  -1,
+                  64
+                ],
+                [
+                  7,
+                  -1,
+                  -1,
+                  -1,
+                  65
+                ],
+                [
+                  14,
+                  20,
+                  44,
+                  52,
+                  74
+                ]
+              ],
+              "signature": "03-07-08-14-15-20-21-38-44-52-60-63-64-65-71-74"
+            },
+            {
+              "tableIndex": 6,
+              "serialCode": "00001-6",
+              "grid": [
+                [
+                  4,
+                  19,
+                  44,
+                  58,
+                  65
+                ],
+                [
+                  15,
+                  29,
+                  32,
+                  57,
+                  62
+                ],
+                [
+                  7,
+                  23,
+                  0,
+                  49,
+                  64
+                ],
+                [
+                  6,
+                  16,
+                  42,
+                  55,
+                  73
+                ],
+                [
+                  9,
+                  21,
+                  34,
+                  52,
+                  63
+                ]
+              ],
+              "signature": "04-06-07-09-15-16-19-21-23-29-32-34-42-44-49-52-55-57-58-62-63-64-65-73"
+            }
+          ],
+          "markedByTable": {
+            "1": [],
+            "2": [],
+            "3": [],
+            "4": [],
+            "5": [],
+            "6": []
+          },
+          "sessionLock": null,
+          "eventId": "evt-tiktok-02"
+        }
+      ],
+      "claims": [],
+      "tieBreak": null,
+      "winnersHistory": [],
+      "sellers": [
+        {
+          "id": "sel-1792443015423",
+          "sellerCode": "caja-evt-tiktok-02",
+          "name": "Taquilla Principal",
+          "phone": "098-765-4321",
+          "commissionPercent": 10,
+          "active": true,
+          "createdAt": "2026-10-19T20:50:15.423Z"
+        }
+      ],
+      "updatedAt": "2026-10-19T20:50:15.423Z"
+    },
+    "evt-colegio-03": {
+      "eventId": "evt-colegio-03",
+      "organizerId": "org-03",
+      "status": "EN_VIVO",
+      "event": {
+        "title": "BINGO PRO-FONDOS GRADUACIÓN",
+        "organizedBy": "Unidad Educativa San Francisco",
+        "address": "Transmisión en Vivo por Facebook Live y TikTok",
+        "note": "Conserve su cartón digital o PDF impreso para validación por QR",
+        "dateTimeText": "Sábado 16h00",
+        "phones": "096-334-4556",
+        "priceText": "$1.50",
+        "prizesByTable": {
+          "1": "Premio Tabla #1 (Letra B)",
+          "2": "Premio Tabla #2 (Letra I)",
+          "3": "Premio Tabla #3 (Letra N)",
+          "4": "Premio Tabla #4 (Letra G)",
+          "5": "Premio Tabla #5 (Letra O)",
+          "6": "Gran Premio Mayor (Tabla Llena)"
+        },
+        "prizesByTableStage": {
+          "1": {
+            "LINEA": "$10 en Efectivo",
+            "PUNTA": "$5 / Sorpresa",
+            "ESQUINAS": "$15 en Efectivo",
+            "BINGO_LOCO": "Pollo Hornado",
+            "LETRA": "Canasta de Víveres #1 (Letra B)",
+            "LLENA": "Canasta Familiar #1"
+          },
+          "2": {
+            "LINEA": "$10 en Efectivo",
+            "PUNTA": "$5 / Sorpresa",
+            "ESQUINAS": "$15 en Efectivo",
+            "BINGO_LOCO": "Premio Rápido $10",
+            "LETRA": "Canasta de Víveres #2 (Letra I)",
+            "LLENA": "Canasta Familiar #2"
+          },
+          "3": {
+            "LINEA": "$10 en Efectivo",
+            "PUNTA": "$5 / Sorpresa",
+            "ESQUINAS": "$15 en Efectivo",
+            "BINGO_LOCO": "Premio Rápido $10",
+            "LETRA": "Premio Sorpresa $30 (Letra N)",
+            "LLENA": "Premio Especial $40"
+          },
+          "4": {
+            "LINEA": "$15 en Efectivo",
+            "PUNTA": "$5 / Sorpresa",
+            "ESQUINAS": "$20 en Efectivo",
+            "BINGO_LOCO": "Premio Rápido $15",
+            "LETRA": "Electrodoméstico (Letra G)",
+            "LLENA": "Premio Especial $50"
+          },
+          "5": {
+            "LINEA": "$15 en Efectivo",
+            "PUNTA": "$10 en Efectivo",
+            "ESQUINAS": "$20 en Efectivo",
+            "BINGO_LOCO": "Premio Rápido $15",
+            "LETRA": "Premio Especial $50 (Letra O)",
+            "LLENA": "Premio Especial $80"
+          },
+          "6": {
+            "LINEA": "$25 en Efectivo",
+            "PUNTA": "$10 en Efectivo",
+            "ESQUINAS": "$30 en Efectivo",
+            "BINGO_LOCO": "$20 en Efectivo",
+            "LETRA": "Gran Premio Mayor $200 (Tabla Llena)",
+            "LLENA": "Gran Premio Mayor $200 (Tabla Llena)"
+          }
+        }
+      },
+      "activeTable": 1,
+      "activeStage": "LETRA",
+      "currentPrizeName": "Canasta de Víveres #1 (Letra B)",
+      "drawnBalls": [],
+      "isPausedForVerification": false,
+      "cards": [
+        {
+          "id": "00001",
+          "cardNumber": "00001",
+          "secretToken": "evt-colegio-03-00001",
+          "buyerName": "Cliente Demo #1",
+          "buyerPhone": "0990001111",
+          "createdAt": "2026-10-19T20:50:15.423Z",
+          "tables": [
+            {
+              "tableIndex": 1,
+              "serialCode": "00001-1",
+              "grid": [
+                [
+                  7,
+                  19,
+                  36,
+                  55,
+                  72
+                ],
+                [
+                  8,
+                  -1,
+                  -1,
+                  -1,
+                  65
+                ],
+                [
+                  4,
+                  17,
+                  0,
+                  60,
+                  -1
+                ],
+                [
+                  2,
+                  -1,
+                  -1,
+                  -1,
+                  64
+                ],
+                [
+                  10,
+                  28,
+                  44,
+                  48,
+                  62
+                ]
+              ],
+              "signature": "02-04-07-08-10-17-19-28-36-44-48-55-60-62-64-65-72"
+            },
+            {
+              "tableIndex": 2,
+              "serialCode": "00001-2",
+              "grid": [
+                [
+                  14,
+                  20,
+                  31,
+                  58,
+                  72
+                ],
+                [
+                  -1,
+                  -1,
+                  37,
+                  -1,
+                  -1
+                ],
+                [
+                  -1,
+                  -1,
+                  0,
+                  -1,
+                  -1
+                ],
+                [
+                  -1,
+                  -1,
+                  33,
+                  -1,
+                  -1
+                ],
+                [
+                  2,
+                  21,
+                  44,
+                  47,
+                  73
+                ]
+              ],
+              "signature": "02-14-20-21-31-33-37-44-47-58-72-73"
+            },
+            {
+              "tableIndex": 3,
+              "serialCode": "00001-3",
+              "grid": [
+                [
+                  5,
+                  -1,
+                  -1,
+                  -1,
+                  63
+                ],
+                [
+                  13,
+                  24,
+                  -1,
+                  -1,
+                  65
+                ],
+                [
+                  4,
+                  -1,
+                  0,
+                  -1,
+                  72
+                ],
+                [
+                  2,
+                  -1,
+                  -1,
+                  51,
+                  74
+                ],
+                [
+                  12,
+                  -1,
+                  -1,
+                  -1,
+                  69
+                ]
+              ],
+              "signature": "02-04-05-12-13-24-51-63-65-69-72-74"
+            },
+            {
+              "tableIndex": 4,
+              "serialCode": "00001-4",
+              "grid": [
+                [
+                  12,
+                  17,
+                  37,
+                  55,
+                  66
+                ],
+                [
+                  4,
+                  -1,
+                  -1,
+                  -1,
+                  -1
+                ],
+                [
+                  9,
+                  -1,
+                  0,
+                  56,
+                  62
+                ],
+                [
+                  2,
+                  -1,
+                  -1,
+                  -1,
+                  67
+                ],
+                [
+                  14,
+                  28,
+                  39,
+                  49,
+                  70
+                ]
+              ],
+              "signature": "02-04-09-12-14-17-28-37-39-49-55-56-62-66-67-70"
+            },
+            {
+              "tableIndex": 5,
+              "serialCode": "00001-5",
+              "grid": [
+                [
+                  11,
+                  21,
+                  44,
+                  57,
+                  62
+                ],
+                [
+                  14,
+                  -1,
+                  -1,
+                  -1,
+                  65
+                ],
+                [
+                  5,
+                  -1,
+                  0,
+                  -1,
+                  69
+                ],
+                [
+                  9,
+                  -1,
+                  -1,
+                  -1,
+                  63
+                ],
+                [
+                  8,
+                  30,
+                  45,
+                  53,
+                  68
+                ]
+              ],
+              "signature": "05-08-09-11-14-21-30-44-45-53-57-62-63-65-68-69"
+            },
+            {
+              "tableIndex": 6,
+              "serialCode": "00001-6",
+              "grid": [
+                [
+                  7,
+                  27,
+                  42,
+                  57,
+                  74
+                ],
+                [
+                  3,
+                  16,
+                  31,
+                  53,
+                  66
+                ],
+                [
+                  8,
+                  23,
+                  0,
+                  48,
+                  64
+                ],
+                [
+                  2,
+                  25,
+                  38,
+                  47,
+                  65
+                ],
+                [
+                  6,
+                  17,
+                  44,
+                  56,
+                  68
+                ]
+              ],
+              "signature": "02-03-06-07-08-16-17-23-25-27-31-38-42-44-47-48-53-56-57-64-65-66-68-74"
+            }
+          ],
+          "markedByTable": {
+            "1": [],
+            "2": [],
+            "3": [],
+            "4": [],
+            "5": [],
+            "6": []
+          },
+          "sessionLock": null,
+          "eventId": "evt-colegio-03"
+        }
+      ],
+      "claims": [],
+      "tieBreak": null,
+      "winnersHistory": [],
+      "sellers": [
+        {
+          "id": "sel-1792443015423",
+          "sellerCode": "caja-evt-colegio-03",
+          "name": "Taquilla Principal",
+          "phone": "096-334-4556",
+          "commissionPercent": 10,
+          "active": true,
+          "createdAt": "2026-10-19T20:50:15.423Z"
+        }
+      ],
+      "updatedAt": "2026-10-19T20:50:15.423Z"
+    }
+  },
+  "updatedAt": "2026-10-20T02:25:42.924Z"
+}
