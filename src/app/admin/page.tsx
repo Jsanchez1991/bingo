@@ -138,6 +138,13 @@ export default function AdminOrganizerPage() {
   const [generatingPool, setGeneratingPool] = useState<boolean>(false);
   const [sellerStatusMsg, setSellerStatusMsg] = useState<string | null>(null);
 
+  // Sincronizar el input de tamaño de talonario con el tope permitido por su plan
+  useEffect(() => {
+    if (plan?.maxCardsPerEvent) {
+      setAdminPoolSizeInput((prev) => Math.min(prev, plan.maxCardsPerEvent));
+    }
+  }, [plan?.maxCardsPerEvent]);
+
   // Control de voz en cabina y detección de nuevos reclamos de BINGO
   const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
   const prevClaimsCountRef = useRef<number>(0);
@@ -1611,22 +1618,26 @@ export default function AdminOrganizerPage() {
               </p>
             </div>
 
-            {/* Botón rápido para habilitar / completar las 100 tablas del talonario */}
+            {/* Botón rápido para habilitar / completar las tablas del talonario según su plan */}
             <div className="flex items-center gap-2 bg-slate-950 p-3 rounded-2xl border border-slate-800">
               <div>
                 <div className="text-[10px] font-black uppercase text-amber-300">
-                  Tamaño Talonario
+                  Tamaño Talonario {plan ? `(Máx. ${plan.maxCardsPerEvent})` : ""}
                 </div>
                 <input
                   type="number"
                   min={1}
-                  max={plan?.maxCardsPerEvent || 1000}
+                  max={plan?.maxCardsPerEvent || 100}
                   value={adminPoolSizeInput}
-                  onChange={(e) =>
-                    setAdminPoolSizeInput(
-                      Math.max(1, Number(e.target.value) || 100)
-                    )
-                  }
+                  onChange={(e) => {
+                    const maxAllowed = plan?.maxCardsPerEvent || 100;
+                    const val = Number(e.target.value);
+                    if (val > maxAllowed) {
+                      setAdminPoolSizeInput(maxAllowed);
+                    } else {
+                      setAdminPoolSizeInput(Math.max(1, val || 1));
+                    }
+                  }}
                   className="w-24 bg-slate-900 border border-amber-400 rounded-xl px-2.5 py-1.5 text-sm font-black text-amber-300 mt-0.5"
                 />
               </div>
@@ -1635,9 +1646,11 @@ export default function AdminOrganizerPage() {
                 disabled={generatingPool}
                 onClick={async () => {
                   setGeneratingPool(true);
+                  const maxAllowed = plan?.maxCardsPerEvent || 100;
+                  const targetSize = Math.min(adminPoolSizeInput, maxAllowed);
                   await postAction({
                     action: "GENERATE_EVENT_POOL",
-                    poolSize: adminPoolSizeInput,
+                    poolSize: targetSize,
                   });
                   setGeneratingPool(false);
                 }}
@@ -1645,7 +1658,7 @@ export default function AdminOrganizerPage() {
               >
                 {generatingPool
                   ? "Generando Tablas..."
-                  : `⚡ Generar / Completar ${adminPoolSizeInput} Tablas`}
+                  : `⚡ Generar / Completar ${Math.min(adminPoolSizeInput, plan?.maxCardsPerEvent || 100)} Tablas`}
               </button>
             </div>
           </div>
