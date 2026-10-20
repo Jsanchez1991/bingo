@@ -7,6 +7,9 @@ import {
   writeGameState,
   findEventByCardToken,
   findEventBySellerCode,
+  findEventBySelectionCode,
+  generateNumberedPoolForEvent,
+  isCardSold,
   submitPlayerClaim,
   createBingoCardSheet,
   createNewEventState,
@@ -14,6 +17,7 @@ import {
   syncToSupabase,
   WinnerRecord,
   BingoCardSheet,
+  SelectionLinkSession,
   SAAS_PLANS,
   SaasPlanId,
   SaasOrganizer,
@@ -44,6 +48,8 @@ function buildSaasSummary(requestedEventId?: string | null) {
 
   const eventsList = Object.values(db.events).map((ev) => {
     const org = db.organizers.find((o) => o.id === ev.organizerId);
+    const soldCount = ev.cards.filter((c) => isCardSold(c)).length;
+    const availableCount = ev.cards.length - soldCount;
     return {
       eventId: ev.eventId,
       organizerId: ev.organizerId,
@@ -53,7 +59,10 @@ function buildSaasSummary(requestedEventId?: string | null) {
       dateTimeText: ev.event.dateTimeText,
       priceText: ev.event.priceText,
       status: ev.status || "EN_VIVO",
-      cardsCount: ev.cards.length,
+      cardsCount: soldCount,
+      totalPoolCount: ev.cards.length,
+      availableCount,
+      pregeneratedPoolSize: ev.pregeneratedPoolSize || ev.cards.length,
       sellersCount: (ev.sellers || []).length,
       drawnBallsCount: ev.drawnBalls.length,
     };
@@ -74,7 +83,25 @@ export async function GET(req: NextRequest) {
   const token = searchParams.get("token");
   const deviceId = searchParams.get("deviceId");
   const sellerCode = searchParams.get("sellerCode");
+  const selectionCode = searchParams.get("selectionCode");
   const eventIdParam = searchParams.get("eventId");
+
+  // 0. Si consulta un Cliente desde el enlace temporal de elección de tablas (/elegir/[code])
+  if (selectionCode) {
+    const foundSel = findEventBySelectionCode(selectionCode);
+    if (!foundSel) {
+      return NextResponse.json(
+        { error: "Enlace de selección no válido o no encontrado." },
+        { status: 404 }
+      );
+    }
+    const { state, linkSession, organizer } = foundSel;
+    return NextResponse.json({
+      state,
+      linkSession,
+      organizer,
+    });
+  }
 
   // 1. Si consulta un Vendedor / Cajero desde /vendedor/[code]
   if (sellerCode) {
@@ -385,6 +412,10 @@ async function handlePostAction(req: NextRequest): Promise<NextResponse> {
 
       const shortId = crypto.randomBytes(2).toString("hex");
       const newEventId = `evt-${shortId}`;
+      const requestedPoolSize = Math.min(
+        plan.maxCardsPerEvent,
+        Math.max(0, Number(body.pregeneratedPoolSize) || 0)
+      );
       const newEvent = createNewEventState({
         eventId: newEventId,
         organizerId: organizer.id,
@@ -396,6 +427,7 @@ async function handlePostAction(req: NextRequest): Promise<NextResponse> {
           body.address || "Transmisión en Vivo por Facebook Live y TikTok"
         ),
         phones: String(body.phones || organizer.phone),
+        pregeneratedPoolSize: requestedPoolSize,
       });
 
       db.events[newEventId] = newEvent;
@@ -446,6 +478,10 @@ async function handlePostAction(req: NextRequest): Promise<NextResponse> {
 
       // Crear su primer evento listo para usar
       const firstEventId = `evt-${crypto.randomBytes(2).toString("hex")}`;
+      const requestedPoolSize = Math.min(
+        plan.maxCardsPerEvent,
+        Math.max(0, Number(body.pregeneratedPoolSize) || 0)
+      );
       const firstEvent = createNewEventState({
         eventId: firstEventId,
         organizerId: newOrg.id,
@@ -455,6 +491,7 @@ async function handlePostAction(req: NextRequest): Promise<NextResponse> {
         organizedBy: newOrg.organizationName,
         priceText: String(body.priceText || "$2.00"),
         phones: newOrg.phone,
+        pregeneratedPoolSize: requestedPoolSize,
       });
 
       db.events[firstEventId] = firstEvent;
@@ -684,7 +721,7 @@ async function handlePostAction(req: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ ok: true, state });
     }
 
-    // A6-C. Eliminar Tablas / Cliente (por secretToken o por cardNumber individual)
+    // A6-C. Eliminar Tablas / Cliente (si el evento tiene talonario pre-generado, devuelve la tabla a DISPONIBLE; si no, la elimina)
     if (action === "DELETE_CARD_GROUP") {
       let targetState = readGameState(requestedEventId);
       if (body.sellerCode) {
@@ -694,23 +731,343 @@ async function handlePostAction(req: NextRequest): Promise<NextResponse> {
 
       const secretToken = body.secretToken as string | undefined;
       const cardNumber = body.cardNumber as string | undefined;
+      const hasPool = (targetState.pregeneratedPoolSize || 0) > 0;
 
       if (cardNumber) {
-        targetState.cards = targetState.cards.filter(
-          (c) => c.cardNumber !== cardNumber
-        );
+        if (hasPool) {
+          for (const c of targetState.cards) {
+            if (c.cardNumber === cardNumber) {
+              c.status = "DISPONIBLE";
+              c.buyerName = "";
+              c.buyerPhone = "";
+              c.secretToken = `disponible-${targetState.eventId}-${c.cardNumber}`;
+              c.markedByTable = {
+                "1": [],
+                "2": [],
+                "3": [],
+                "4": [],
+                "5": [],
+                "6": [],
+              };
+              c.sessionLock = null;
+              c.soldBySellerId = undefined;
+              c.soldBySellerName = undefined;
+            }
+          }
+        } else {
+          targetState.cards = targetState.cards.filter(
+            (c) => c.cardNumber !== cardNumber
+          );
+        }
         targetState.claims = targetState.claims.filter(
           (cl) => cl.cardNumber !== cardNumber
         );
       } else if (secretToken) {
-        targetState.cards = targetState.cards.filter(
-          (c) => c.secretToken !== secretToken
-        );
+        if (hasPool) {
+          for (const c of targetState.cards) {
+            if (c.secretToken === secretToken) {
+              c.status = "DISPONIBLE";
+              c.buyerName = "";
+              c.buyerPhone = "";
+              c.secretToken = `disponible-${targetState.eventId}-${c.cardNumber}`;
+              c.markedByTable = {
+                "1": [],
+                "2": [],
+                "3": [],
+                "4": [],
+                "5": [],
+                "6": [],
+              };
+              c.sessionLock = null;
+              c.soldBySellerId = undefined;
+              c.soldBySellerName = undefined;
+            }
+          }
+        } else {
+          targetState.cards = targetState.cards.filter(
+            (c) => c.secretToken !== secretToken
+          );
+        }
         targetState.claims = targetState.claims.filter(
           (cl) => cl.secretToken !== secretToken
         );
       }
 
+      writeGameState(targetState, targetState.eventId);
+      return NextResponse.json({ ok: true, state: targetState });
+    }
+
+    // A7. Pre-generar Talonario Numerado (ej. 100 Tablas del #00001 al #00100 en estado DISPONIBLE)
+    if (action === "GENERATE_EVENT_POOL") {
+      const targetEventId = String(
+        body.targetEventId || requestedEventId || ""
+      );
+      const { state: targetState, plan } = buildSaasSummary(
+        targetEventId || undefined
+      );
+      const poolSize = Math.min(
+        plan.maxCardsPerEvent,
+        Math.max(1, Number(body.poolSize) || 100)
+      );
+
+      const { createdCount, totalCount } = generateNumberedPoolForEvent(
+        targetState,
+        poolSize
+      );
+      writeGameState(targetState, targetState.eventId);
+
+      const summary = buildSaasSummary(targetState.eventId);
+      return NextResponse.json({
+        ok: true,
+        createdCount,
+        totalCount,
+        state: summary.state,
+        organizer: summary.organizer,
+        plan: summary.plan,
+        eventsList: summary.eventsList,
+        organizers: summary.db.organizers,
+      });
+    }
+
+    // A8. Asignar Rango de Tablas (Talonario) a un Vendedor o liberar a Caja General
+    if (action === "ASSIGN_CARDS_TO_SELLER") {
+      const targetState = readGameState(requestedEventId);
+      const fromNumber = Math.max(1, Number(body.fromNumber) || 1);
+      const toNumber = Math.max(fromNumber, Number(body.toNumber) || fromNumber);
+      const sellerId = String(body.sellerId || "");
+      const sellerObj = (targetState.sellers || []).find(
+        (s) => s.id === sellerId
+      );
+
+      let updatedCount = 0;
+      for (const card of targetState.cards) {
+        const num = parseInt(card.cardNumber, 10);
+        if (num >= fromNumber && num <= toNumber) {
+          if (sellerObj) {
+            card.assignedSellerId = sellerObj.id;
+            card.assignedSellerName = sellerObj.name;
+          } else {
+            card.assignedSellerId = undefined;
+            card.assignedSellerName = undefined;
+          }
+          updatedCount++;
+        }
+      }
+
+      writeGameState(targetState, targetState.eventId);
+      return NextResponse.json({
+        ok: true,
+        updatedCount,
+        state: targetState,
+      });
+    }
+
+    // A9. Crear Enlace Temporal (de 1 solo uso) para que el Cliente elija exactamente N tablas disponibles
+    if (action === "CREATE_SELECTION_LINK") {
+      let targetState = readGameState(requestedEventId);
+      let sellerObj: EventSeller | undefined;
+
+      if (body.sellerCode) {
+        const foundSeller = findEventBySellerCode(String(body.sellerCode));
+        if (!foundSeller) {
+          return NextResponse.json(
+            { ok: false, message: "Código de vendedor inválido." },
+            { status: 404 }
+          );
+        }
+        if (!foundSeller.seller.active) {
+          return NextResponse.json(
+            {
+              ok: false,
+              message:
+                "Tu acceso de vendedor está pausado por el organizador.",
+            },
+            { status: 403 }
+          );
+        }
+        targetState = foundSeller.state;
+        sellerObj = foundSeller.seller;
+      } else if (body.sellerId) {
+        sellerObj = (targetState.sellers || []).find(
+          (s) => s.id === body.sellerId
+        );
+      }
+
+      const buyerName = String(body.buyerName || "Cliente").trim();
+      const buyerPhone = String(body.buyerPhone || "").trim();
+      const allowedQuantity = Math.max(
+        1,
+        Math.min(25, Number(body.allowedQuantity) || 1)
+      );
+
+      // Si el evento aún no tenía tablas disponibles suficientes, generar un lote base automáticamente
+      const availableForThisSeller = targetState.cards.filter((c) => {
+        if (isCardSold(c)) return false;
+        if (sellerObj) {
+          const sellerHasAssignedPool = targetState.cards.some(
+            (card) => card.assignedSellerId === sellerObj!.id
+          );
+          if (sellerHasAssignedPool) {
+            return c.assignedSellerId === sellerObj.id;
+          }
+        }
+        return true;
+      });
+
+      if (availableForThisSeller.length < allowedQuantity) {
+        // Si no hay talonario pre-generado aún, generamos 100 tablas por defecto (o hasta el tope del plan)
+        const { plan } = buildSaasSummary(targetState.eventId);
+        if ((targetState.pregeneratedPoolSize || 0) === 0) {
+          generateNumberedPoolForEvent(
+            targetState,
+            Math.min(100, plan.maxCardsPerEvent)
+          );
+        } else {
+          return NextResponse.json(
+            {
+              ok: false,
+              message: `Solo quedan ${availableForThisSeller.length} tabla(s) disponible(s) en este talonario y solicitaste un enlace para ${allowedQuantity}.`,
+            },
+            { status: 400 }
+          );
+        }
+      }
+
+      const shortHash = crypto.randomBytes(3).toString("hex");
+      const code = `elegir-${shortHash}`;
+      const newLink: SelectionLinkSession = {
+        id: `sel-link-${Date.now()}`,
+        code,
+        eventId: targetState.eventId,
+        sellerId: sellerObj?.id,
+        sellerName: sellerObj?.name,
+        buyerName,
+        buyerPhone,
+        allowedQuantity,
+        status: "ACTIVO",
+        selectedCardNumbers: [],
+        createdAt: new Date().toISOString(),
+      };
+
+      if (!targetState.selectionLinks) {
+        targetState.selectionLinks = [];
+      }
+      targetState.selectionLinks.unshift(newLink);
+      writeGameState(targetState, targetState.eventId);
+
+      return NextResponse.json({
+        ok: true,
+        linkSession: newLink,
+        state: targetState,
+      });
+    }
+
+    // A10. Cliente confirma sus N tablas elegidas desde /elegir/[code] -> se asignan y se cierra el link
+    if (action === "CONFIRM_CARD_SELECTION") {
+      const selectionCode = String(body.selectionCode || "");
+      const foundSel = findEventBySelectionCode(selectionCode);
+      if (!foundSel) {
+        return NextResponse.json(
+          { ok: false, message: "Enlace de selección no encontrado." },
+          { status: 404 }
+        );
+      }
+
+      const { state: targetState, linkSession } = foundSel;
+      if (linkSession.status !== "ACTIVO") {
+        return NextResponse.json(
+          {
+            ok: false,
+            message:
+              "Este enlace ya fue utilizado y se encuentra cerrado.",
+            linkSession,
+          },
+          { status: 400 }
+        );
+      }
+
+      const selectedCardNumbers: string[] = Array.isArray(
+        body.selectedCardNumbers
+      )
+        ? body.selectedCardNumbers.map((n: unknown) => String(n))
+        : [];
+
+      if (selectedCardNumbers.length !== linkSession.allowedQuantity) {
+        return NextResponse.json(
+          {
+            ok: false,
+            message: `Debes elegir exactamente ${linkSession.allowedQuantity} tabla(s). Has seleccionado ${selectedCardNumbers.length}.`,
+          },
+          { status: 400 }
+        );
+      }
+
+      // Verificar que todas estén disponibles
+      const chosenCards: BingoCardSheet[] = [];
+      for (const cNum of selectedCardNumbers) {
+        const card = targetState.cards.find((c) => c.cardNumber === cNum);
+        if (!card || isCardSold(card)) {
+          return NextResponse.json(
+            {
+              ok: false,
+              message: `La Tabla #${cNum} acaba de ser elegida por otra persona. Por favor elige otra tabla disponible.`,
+            },
+            { status: 409 }
+          );
+        }
+        chosenCards.push(card);
+      }
+
+      const buyerName =
+        String(body.buyerName || linkSession.buyerName || "Participante").trim();
+      const buyerPhone =
+        String(body.buyerPhone || linkSession.buyerPhone || "").trim();
+
+      const shortHash = crypto.randomBytes(3).toString("hex");
+      const sharedPlayerToken = `${targetState.eventId}-${chosenCards[0].cardNumber}-${shortHash}`;
+
+      for (const card of chosenCards) {
+        card.status = "VENDIDA";
+        card.buyerName = buyerName;
+        card.buyerPhone = buyerPhone;
+        card.secretToken = sharedPlayerToken;
+        card.createdAt = new Date().toISOString();
+        if (linkSession.sellerId) {
+          card.soldBySellerId = linkSession.sellerId;
+          card.soldBySellerName = linkSession.sellerName;
+        } else if (card.assignedSellerId) {
+          card.soldBySellerId = card.assignedSellerId;
+          card.soldBySellerName = card.assignedSellerName;
+        }
+      }
+
+      linkSession.buyerName = buyerName;
+      linkSession.buyerPhone = buyerPhone;
+      linkSession.status = "COMPLETADO";
+      linkSession.selectedCardNumbers = selectedCardNumbers;
+      linkSession.finalPlayerToken = sharedPlayerToken;
+      linkSession.completedAt = new Date().toISOString();
+
+      writeGameState(targetState, targetState.eventId);
+
+      return NextResponse.json({
+        ok: true,
+        linkSession,
+        finalPlayerToken: sharedPlayerToken,
+        state: targetState,
+      });
+    }
+
+    // A11. Cancelar o eliminar un enlace temporal de selección
+    if (action === "DELETE_SELECTION_LINK") {
+      let targetState = readGameState(requestedEventId);
+      if (body.sellerCode) {
+        const foundSeller = findEventBySellerCode(String(body.sellerCode));
+        if (foundSeller) targetState = foundSeller.state;
+      }
+      targetState.selectionLinks = (targetState.selectionLinks || []).filter(
+        (l) => l.id !== body.linkId && l.code !== body.code
+      );
       writeGameState(targetState, targetState.eventId);
       return NextResponse.json({ ok: true, state: targetState });
     }
@@ -1154,13 +1511,33 @@ async function handlePostAction(req: NextRequest): Promise<NextResponse> {
         | string
         | undefined;
 
-      // Validar límite de tablas del Plan SaaS
-      if (targetState.cards.length + quantity > plan.maxCardsPerEvent) {
+      const existingClientCard = existingSecretToken
+        ? targetState.cards.find((c) => c.secretToken === existingSecretToken)
+        : undefined;
+
+      // Si hay tablas DISPONIBLES en el talonario pre-generado, tomar primero de ahí (respetando lote del vendedor si aplica)
+      const availablePoolCards = targetState.cards.filter((c) => {
+        if (isCardSold(c)) return false;
+        if (sellerObj) {
+          const sellerHasAssignedPool = targetState.cards.some(
+            (card) => card.assignedSellerId === sellerObj!.id
+          );
+          if (sellerHasAssignedPool) {
+            return c.assignedSellerId === sellerObj.id;
+          }
+        }
+        return true;
+      });
+
+      const soldCardsCount = targetState.cards.filter((c) =>
+        isCardSold(c)
+      ).length;
+      if (soldCardsCount + quantity > plan.maxCardsPerEvent) {
         return NextResponse.json(
           {
             ok: false,
             limitReached: true,
-            message: `Límite alcanzado: Tu ${plan.name} permite hasta ${plan.maxCardsPerEvent} tablas por evento (actualmente tienes ${targetState.cards.length}). Sube al Plan Básico ($15) o Plan Pro ($35) para vender más tablas.`,
+            message: `Límite alcanzado: Tu ${plan.name} permite hasta ${plan.maxCardsPerEvent} tablas por evento (actualmente tienes ${soldCardsCount} vendidas). Sube al Plan Básico ($15) o Plan Pro ($35) para vender más tablas.`,
           },
           { status: 400 }
         );
@@ -1170,7 +1547,10 @@ async function handlePostAction(req: NextRequest): Promise<NextResponse> {
         (max, c) => Math.max(max, parseInt(c.cardNumber, 10) || 0),
         0
       );
-      const firstCardNum = maxExistingNum + 1;
+      const firstCardNum =
+        availablePoolCards.length > 0
+          ? parseInt(availablePoolCards[0].cardNumber, 10)
+          : maxExistingNum + 1;
       const shortHash = crypto.randomBytes(3).toString("hex");
       const sharedToken =
         existingSecretToken ||
@@ -1179,32 +1559,58 @@ async function handlePostAction(req: NextRequest): Promise<NextResponse> {
           "0"
         )}-${shortHash}`;
 
-      const existingClientCard = existingSecretToken
-        ? targetState.cards.find((c) => c.secretToken === existingSecretToken)
-        : undefined;
-
       const createdCards: BingoCardSheet[] = [];
       for (let i = 0; i < quantity; i++) {
-        const nextNum = maxExistingNum + i + 1;
-        const newCard = createBingoCardSheet(
-          nextNum,
-          existingClientCard ? existingClientCard.buyerName : buyerName,
-          existingClientCard ? existingClientCard.buyerPhone : buyerPhone,
-          targetState.cards,
-          sharedToken,
-          {
-            eventId: targetState.eventId,
-            soldBySellerId:
-              sellerObj?.id || existingClientCard?.soldBySellerId,
-            soldBySellerName:
-              sellerObj?.name || existingClientCard?.soldBySellerName,
+        const poolCard = availablePoolCards[i];
+        if (poolCard) {
+          poolCard.status = "VENDIDA";
+          poolCard.buyerName = existingClientCard
+            ? existingClientCard.buyerName
+            : buyerName;
+          poolCard.buyerPhone = existingClientCard
+            ? existingClientCard.buyerPhone
+            : buyerPhone;
+          poolCard.secretToken = sharedToken;
+          poolCard.createdAt = new Date().toISOString();
+          poolCard.soldBySellerId =
+            sellerObj?.id ||
+            existingClientCard?.soldBySellerId ||
+            poolCard.assignedSellerId;
+          poolCard.soldBySellerName =
+            sellerObj?.name ||
+            existingClientCard?.soldBySellerName ||
+            poolCard.assignedSellerName;
+          if (existingClientCard?.sessionLock) {
+            poolCard.sessionLock = { ...existingClientCard.sessionLock };
           }
-        );
-        if (existingClientCard?.sessionLock) {
-          newCard.sessionLock = { ...existingClientCard.sessionLock };
+          createdCards.push(poolCard);
+        } else {
+          const nextNum =
+            targetState.cards.reduce(
+              (max, c) => Math.max(max, parseInt(c.cardNumber, 10) || 0),
+              0
+            ) + 1;
+          const newCard = createBingoCardSheet(
+            nextNum,
+            existingClientCard ? existingClientCard.buyerName : buyerName,
+            existingClientCard ? existingClientCard.buyerPhone : buyerPhone,
+            targetState.cards,
+            sharedToken,
+            {
+              eventId: targetState.eventId,
+              status: "VENDIDA",
+              soldBySellerId:
+                sellerObj?.id || existingClientCard?.soldBySellerId,
+              soldBySellerName:
+                sellerObj?.name || existingClientCard?.soldBySellerName,
+            }
+          );
+          if (existingClientCard?.sessionLock) {
+            newCard.sessionLock = { ...existingClientCard.sessionLock };
+          }
+          targetState.cards.push(newCard);
+          createdCards.push(newCard);
         }
-        targetState.cards.push(newCard);
-        createdCards.push(newCard);
       }
 
       writeGameState(targetState, targetState.eventId);

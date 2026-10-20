@@ -24,6 +24,9 @@ interface EventSummaryItem {
   priceText: string;
   status: string;
   cardsCount: number;
+  totalPoolCount?: number;
+  availableCount?: number;
+  pregeneratedPoolSize?: number;
   sellersCount: number;
   drawnBallsCount: number;
 }
@@ -48,6 +51,7 @@ export default function SaasSuperAdminPage() {
   const [planId, setPlanId] = useState<SaasPlanId>("PLAN_BASICO");
   const [firstEventTitle, setFirstEventTitle] = useState("");
   const [priceText, setPriceText] = useState("$2.00");
+  const [initialPoolSize, setInitialPoolSize] = useState<number>(100);
 
   // Estado para editar los datos, usuario y contraseña de un Organizador existente
   const [editingOrgId, setEditingOrgId] = useState<string | null>(null);
@@ -62,6 +66,13 @@ export default function SaasSuperAdminPage() {
   const [newEventTitle, setNewEventTitle] = useState("");
   const [newEventDate, setNewEventDate] = useState("Domingo 20h00");
   const [newEventPrice, setNewEventPrice] = useState("$2.00");
+  const [newEventPoolSize, setNewEventPoolSize] = useState<number>(100);
+  const [customPoolByEvent, setCustomPoolByEvent] = useState<
+    Record<string, number>
+  >({});
+  const [generatingPoolEventId, setGeneratingPoolEventId] = useState<
+    string | null
+  >(null);
 
   useEffect(() => {
     setSession(getSaasSession());
@@ -183,6 +194,7 @@ export default function SaasSuperAdminPage() {
         firstEventTitle:
           firstEventTitle || `GRAN BINGO ${(companyName || orgName).toUpperCase()}`,
         priceText,
+        pregeneratedPoolSize: initialPoolSize,
       }),
     });
     const data = await res.json();
@@ -197,9 +209,7 @@ export default function SaasSuperAdminPage() {
       setAccessCode("");
       setFirstEventTitle("");
       showNotice(
-        `✅ Organizador "${data.newOrganizer.organizationName}" creado (Usuario: ${data.newOrganizer.email} | Clave: ${data.newOrganizer.accessCode}) con ${
-          SAAS_PLANS[data.newOrganizer.planId as SaasPlanId].name
-        }.`
+        `✅ Organizador "${data.newOrganizer.organizationName}" creado (Usuario: ${data.newOrganizer.email} | Clave: ${data.newOrganizer.accessCode}) con ${initialPoolSize} tablas pre-generadas listas para elegir.`
       );
     }
   };
@@ -324,6 +334,7 @@ export default function SaasSuperAdminPage() {
         title: newEventTitle,
         dateTimeText: newEventDate,
         priceText: newEventPrice,
+        pregeneratedPoolSize: newEventPoolSize,
       }),
     });
     const data = await res.json();
@@ -335,7 +346,37 @@ export default function SaasSuperAdminPage() {
     setActiveDefaultEventId(data.activeDefaultEventId || "");
     setNewEventOrgId(null);
     setNewEventTitle("");
-    showNotice("✅ Nuevo evento de Bingo creado y seleccionado como activo.");
+    showNotice(
+      `✅ Nuevo evento de Bingo creado con ${newEventPoolSize} tablas pre-generadas listas para escoger.`
+    );
+  };
+
+  const handleGeneratePoolForEvent = async (
+    eventId: string,
+    poolSize: number
+  ) => {
+    setGeneratingPoolEventId(eventId);
+    const res = await fetch("/api/bingo", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "GENERATE_EVENT_POOL",
+        targetEventId: eventId,
+        poolSize,
+      }),
+    });
+    const data = await res.json();
+    setGeneratingPoolEventId(null);
+    if (data.ok) {
+      setEventsList(data.eventsList || []);
+      showNotice(
+        `✅ Se generaron/completaron ${data.totalCount} tablas numeradas (#00001 a #${String(
+          data.totalCount
+        ).padStart(5, "0")}) para que los clientes puedan elegir.`
+      );
+    } else {
+      showNotice(`⚠️ ${data.message || "Error al generar talonario."}`);
+    }
   };
 
   const handleOpenEventInAdmin = async (eventId: string) => {
@@ -639,7 +680,7 @@ export default function SaasSuperAdminPage() {
             </div>
 
             <div className="flex items-end gap-2">
-              <div className="w-24">
+              <div className="w-20">
                 <label className="block text-xs font-black uppercase text-slate-400 mb-1">
                   Precio
                 </label>
@@ -647,12 +688,30 @@ export default function SaasSuperAdminPage() {
                   type="text"
                   value={priceText}
                   onChange={(e) => setPriceText(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-sm font-black text-amber-300"
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-2.5 text-sm font-black text-amber-300"
+                />
+              </div>
+              <div className="w-28">
+                <label
+                  className="block text-xs font-black uppercase text-sky-300 mb-1"
+                  title="Cantidad de tablas pre-generadas para que los clientes puedan elegir"
+                >
+                  Talonario
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  max={1000}
+                  value={initialPoolSize}
+                  onChange={(e) =>
+                    setInitialPoolSize(Math.max(1, Number(e.target.value) || 100))
+                  }
+                  className="w-full bg-slate-900 border-2 border-sky-400 rounded-xl px-2.5 py-2.5 text-sm font-black text-sky-300"
                 />
               </div>
               <button
                 type="submit"
-                className="flex-1 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-2.5 px-4 rounded-xl text-sm shadow-lg cursor-pointer"
+                className="flex-1 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-2.5 px-3 rounded-xl text-sm shadow-lg cursor-pointer"
               >
                 🚀 Crear Organizador
               </button>
@@ -905,7 +964,7 @@ export default function SaasSuperAdminPage() {
                         className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm font-bold text-white"
                       />
                     </div>
-                    <div className="w-28">
+                    <div className="w-24">
                       <label className="block text-xs font-black uppercase text-slate-400 mb-1">
                         Valor Tabla
                       </label>
@@ -914,6 +973,23 @@ export default function SaasSuperAdminPage() {
                         value={newEventPrice}
                         onChange={(e) => setNewEventPrice(e.target.value)}
                         className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm font-bold text-amber-300"
+                      />
+                    </div>
+                    <div className="w-36">
+                      <label className="block text-xs font-black uppercase text-emerald-400 mb-1">
+                        Tablas Pre-Creadas
+                      </label>
+                      <input
+                        type="number"
+                        min={1}
+                        max={orgPlan.maxCardsPerEvent}
+                        value={newEventPoolSize}
+                        onChange={(e) =>
+                          setNewEventPoolSize(
+                            Math.max(1, Number(e.target.value) || 100)
+                          )
+                        }
+                        className="w-full bg-slate-900 border-2 border-emerald-400 rounded-xl px-3 py-2 text-sm font-black text-emerald-300"
                       />
                     </div>
                     <button
@@ -936,6 +1012,11 @@ export default function SaasSuperAdminPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                   {orgEvents.map((ev) => {
                     const isDefault = ev.eventId === activeDefaultEventId;
+                    const totalPool = ev.totalPoolCount ?? ev.cardsCount;
+                    const availCount = ev.availableCount ?? 0;
+                    const desiredPool =
+                      customPoolByEvent[ev.eventId] ??
+                      Math.min(100, orgPlan.maxCardsPerEvent);
                     const usagePct = Math.min(
                       100,
                       Math.round(
@@ -991,8 +1072,11 @@ export default function SaasSuperAdminPage() {
                           <div className="mt-3">
                             <div className="flex justify-between text-xs font-bold mb-1">
                               <span className="text-slate-300">
-                                Tablas Vendidas: {ev.cardsCount} /{" "}
-                                {orgPlan.maxCardsPerEvent}
+                                Vendidas: {ev.cardsCount} •{" "}
+                                <strong className="text-emerald-400">
+                                  Libres: {availCount}
+                                </strong>{" "}
+                                (Total Talonario: {totalPool})
                               </span>
                               <span className="text-amber-300">
                                 {usagePct}%
@@ -1004,6 +1088,42 @@ export default function SaasSuperAdminPage() {
                                 style={{ width: `${usagePct}%` }}
                               />
                             </div>
+                          </div>
+
+                          {/* Control para pre-generar N tablas numeradas listas para elegir */}
+                          <div className="mt-3 pt-2.5 border-t border-slate-800 flex items-center gap-2">
+                            <input
+                              type="number"
+                              min={1}
+                              max={orgPlan.maxCardsPerEvent}
+                              value={desiredPool}
+                              onChange={(e) =>
+                                setCustomPoolByEvent((prev) => ({
+                                  ...prev,
+                                  [ev.eventId]: Math.max(
+                                    1,
+                                    Number(e.target.value) || 100
+                                  ),
+                                }))
+                              }
+                              className="w-20 bg-slate-900 border border-sky-500/60 rounded-xl px-2.5 py-1.5 text-xs font-black text-sky-300"
+                              title="Cantidad de tablas numeradas del talonario"
+                            />
+                            <button
+                              type="button"
+                              disabled={generatingPoolEventId === ev.eventId}
+                              onClick={() =>
+                                handleGeneratePoolForEvent(
+                                  ev.eventId,
+                                  desiredPool
+                                )
+                              }
+                              className="flex-1 bg-sky-500/20 hover:bg-sky-500 border border-sky-400/60 text-sky-300 hover:text-slate-950 font-black text-xs py-1.5 px-2.5 rounded-xl cursor-pointer transition-colors"
+                            >
+                              {generatingPoolEventId === ev.eventId
+                                ? "Generando..."
+                                : `⚡ Habilitar ${desiredPool} Tablas`}
+                            </button>
                           </div>
                         </div>
 

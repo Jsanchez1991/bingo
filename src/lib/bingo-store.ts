@@ -136,6 +136,22 @@ export interface DeviceSessionLock {
   lastSeenAt: string;
 }
 
+export interface SelectionLinkSession {
+  id: string;
+  code: string; // ej. "sel-8f3a1b" -> abre /elegir/sel-8f3a1b
+  eventId: string;
+  sellerId?: string;
+  sellerName?: string;
+  buyerName: string;
+  buyerPhone: string;
+  allowedQuantity: number;
+  status: "ACTIVO" | "COMPLETADO" | "CANCELADO";
+  selectedCardNumbers: string[];
+  finalPlayerToken?: string;
+  createdAt: string;
+  completedAt?: string;
+}
+
 export interface BingoCardSheet {
   id: string;
   cardNumber: string; // ej. "00001"
@@ -147,6 +163,9 @@ export interface BingoCardSheet {
   markedByTable: Record<string, number[]>;
   sessionLock: DeviceSessionLock | null;
   eventId?: string;
+  status?: "DISPONIBLE" | "VENDIDA"; // Si es DISPONIBLE, está en el inventario pre-generado esperando comprador
+  assignedSellerId?: string; // Talonario asignado a un vendedor específico
+  assignedSellerName?: string;
   soldBySellerId?: string;
   soldBySellerName?: string;
 }
@@ -233,6 +252,8 @@ export interface BingoGameState {
   tieBreak: TieBreakSession | null;
   winnersHistory: WinnerRecord[];
   sellers: EventSeller[];
+  selectionLinks?: SelectionLinkSession[];
+  pregeneratedPoolSize?: number;
   updatedAt: string;
 }
 
@@ -471,6 +492,9 @@ export function createBingoCardSheet(
   forcedSecretToken?: string,
   extraMeta?: {
     eventId?: string;
+    status?: "DISPONIBLE" | "VENDIDA";
+    assignedSellerId?: string;
+    assignedSellerName?: string;
     soldBySellerId?: string;
     soldBySellerName?: string;
   }
@@ -499,9 +523,65 @@ export function createBingoCardSheet(
     },
     sessionLock: null,
     eventId: extraMeta?.eventId,
+    status: extraMeta?.status || "VENDIDA",
+    assignedSellerId: extraMeta?.assignedSellerId,
+    assignedSellerName: extraMeta?.assignedSellerName,
     soldBySellerId: extraMeta?.soldBySellerId,
     soldBySellerName: extraMeta?.soldBySellerName,
   };
+}
+
+/**
+ * Genera o completa un talonario pre-generado de N tablas numeradas (#00001..#0000N)
+ * en estado DISPONIBLE para que los clientes puedan escoger sus números favoritos.
+ */
+export function generateNumberedPoolForEvent(
+  state: BingoGameState,
+  targetPoolSize: number
+): { createdCount: number; totalCount: number } {
+  const safeSize = Math.max(1, Math.min(2000, Math.floor(targetPoolSize)));
+  const existingByNum = new Map<number, BingoCardSheet>();
+  for (const c of state.cards) {
+    const num = parseInt(c.cardNumber, 10);
+    if (!isNaN(num)) {
+      existingByNum.set(num, c);
+    }
+  }
+
+  let createdCount = 0;
+  for (let num = 1; num <= safeSize; num++) {
+    if (!existingByNum.has(num)) {
+      const cardNumber = String(num).padStart(5, "0");
+      const poolCard = createBingoCardSheet(
+        num,
+        "",
+        "",
+        state.cards,
+        `disponible-${state.eventId}-${cardNumber}`,
+        {
+          eventId: state.eventId,
+          status: "DISPONIBLE",
+        }
+      );
+      state.cards.push(poolCard);
+      createdCount++;
+    }
+  }
+
+  state.cards.sort(
+    (a, b) => (parseInt(a.cardNumber, 10) || 0) - (parseInt(b.cardNumber, 10) || 0)
+  );
+  state.pregeneratedPoolSize = Math.max(
+    state.pregeneratedPoolSize || 0,
+    safeSize,
+    state.cards.length
+  );
+
+  return { createdCount, totalCount: state.cards.length };
+}
+
+export function isCardSold(card: BingoCardSheet): boolean {
+  return card.status !== "DISPONIBLE";
 }
 
 const REAL_ECUADOR_CARD_00001_RAW_GRIDS: number[][][] = [
@@ -802,16 +882,9 @@ export function createNewEventState(params: {
   dateTimeText?: string;
   address?: string;
   phones?: string;
+  pregeneratedPoolSize?: number;
 }): BingoGameState {
-  const c1 = createBingoCardSheet(
-    1,
-    "Cliente Demo #1",
-    "0990001111",
-    [],
-    `${params.eventId}-00001`,
-    { eventId: params.eventId }
-  );
-  return {
+  const state: BingoGameState = {
     eventId: params.eventId,
     organizerId: params.organizerId,
     status: "EN_VIVO",
@@ -839,7 +912,7 @@ export function createNewEventState(params: {
     currentPrizeName: "Canasta de Víveres #1 (Letra B)",
     drawnBalls: [],
     isPausedForVerification: false,
-    cards: [c1],
+    cards: [],
     claims: [],
     tieBreak: null,
     winnersHistory: [],
@@ -854,8 +927,26 @@ export function createNewEventState(params: {
         createdAt: new Date().toISOString(),
       },
     ],
+    selectionLinks: [],
+    pregeneratedPoolSize: params.pregeneratedPoolSize || 0,
     updatedAt: new Date().toISOString(),
   };
+
+  if (params.pregeneratedPoolSize && params.pregeneratedPoolSize > 0) {
+    generateNumberedPoolForEvent(state, params.pregeneratedPoolSize);
+  } else {
+    const c1 = createBingoCardSheet(
+      1,
+      "Cliente Demo #1",
+      "0990001111",
+      [],
+      `${params.eventId}-00001`,
+      { eventId: params.eventId, status: "VENDIDA" }
+    );
+    state.cards = [c1];
+  }
+
+  return state;
 }
 
 function getInitialSaasDatabase(): SaasDatabase {
@@ -1052,6 +1143,24 @@ export function findEventBySellerCode(sellerCode: string): {
     if (seller) {
       const organizer = db.organizers.find((o) => o.id === ev.organizerId);
       return { state: ev, seller, organizer };
+    }
+  }
+  return null;
+}
+
+export function findEventBySelectionCode(selectionCode: string): {
+  state: BingoGameState;
+  linkSession: SelectionLinkSession;
+  organizer: SaasOrganizer | undefined;
+} | null {
+  const db = readSaasDb();
+  for (const ev of Object.values(db.events)) {
+    const linkSession = (ev.selectionLinks || []).find(
+      (l) => l.code.toLowerCase() === selectionCode.toLowerCase()
+    );
+    if (linkSession) {
+      const organizer = db.organizers.find((o) => o.id === ev.organizerId);
+      return { state: ev, linkSession, organizer };
     }
   }
   return null;

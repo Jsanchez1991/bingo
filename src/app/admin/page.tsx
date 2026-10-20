@@ -126,6 +126,17 @@ export default function AdminOrganizerPage() {
   const [newSellerPhone, setNewSellerPhone] = useState<string>("");
   const [newSellerCommission, setNewSellerCommission] = useState<number>(10);
 
+  // Estados para Talonario Pre-generado, Asignación por Vendedor y Enlace Temporal de Elección
+  const [adminPoolSizeInput, setAdminPoolSizeInput] = useState<number>(100);
+  const [assignFromNum, setAssignFromNum] = useState<number>(1);
+  const [assignToNum, setAssignToNum] = useState<number>(50);
+  const [assignSellerId, setAssignSellerId] = useState<string>("");
+  const [selBuyerName, setSelBuyerName] = useState<string>("");
+  const [selBuyerPhone, setSelBuyerPhone] = useState<string>("");
+  const [selAllowedQty, setSelAllowedQty] = useState<number>(3);
+  const [selSellerId, setSelSellerId] = useState<string>("");
+  const [generatingPool, setGeneratingPool] = useState<boolean>(false);
+
   // Control de voz en cabina y detección de nuevos reclamos de BINGO
   const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
   const prevClaimsCountRef = useRef<number>(0);
@@ -1574,6 +1585,375 @@ export default function AdminOrganizerPage() {
         </div>
 
         {/* =================================================================== */}
+        {/* PASO 3.5: TALONARIO PRE-GENERADO, REPARTO A VENDEDORES Y LINK ELEGIR*/}
+        {/* =================================================================== */}
+        <section className="bg-slate-900 border-4 border-amber-400 rounded-3xl p-5 sm:p-6 shadow-2xl space-y-5">
+          <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-800 pb-4">
+            <div>
+              <span className="inline-block bg-amber-400 text-slate-950 font-black px-3 py-0.5 rounded-full text-xs uppercase mb-1">
+                🎟️ TALONARIO NUMERADO Y ENLACE TEMPORAL PARA QUE EL CLIENTE ELIJA SUS TABLAS
+              </span>
+              <h2 className="text-xl sm:text-2xl font-black text-white">
+                Catálogo de Tablas Pre-Creadas, Asignación a Vendedores y Link de Elección
+              </h2>
+              <p className="text-slate-300 text-xs sm:text-sm">
+                Pre-genera las tablas numeradas de tu evento (ej. 100 tablas), repártelas por rangos a tus vendedores (ej. 50 y 50) y envía enlaces de 1 solo uso para que el cliente escoja sus números favoritos.
+              </p>
+            </div>
+
+            {/* Botón rápido para habilitar / completar las 100 tablas del talonario */}
+            <div className="flex items-center gap-2 bg-slate-950 p-3 rounded-2xl border border-slate-800">
+              <div>
+                <div className="text-[10px] font-black uppercase text-amber-300">
+                  Tamaño Talonario
+                </div>
+                <input
+                  type="number"
+                  min={1}
+                  max={plan?.maxCardsPerEvent || 1000}
+                  value={adminPoolSizeInput}
+                  onChange={(e) =>
+                    setAdminPoolSizeInput(
+                      Math.max(1, Number(e.target.value) || 100)
+                    )
+                  }
+                  className="w-24 bg-slate-900 border border-amber-400 rounded-xl px-2.5 py-1.5 text-sm font-black text-amber-300 mt-0.5"
+                />
+              </div>
+              <button
+                type="button"
+                disabled={generatingPool}
+                onClick={async () => {
+                  setGeneratingPool(true);
+                  await postAction({
+                    action: "GENERATE_EVENT_POOL",
+                    poolSize: adminPoolSizeInput,
+                  });
+                  setGeneratingPool(false);
+                }}
+                className="bg-amber-400 hover:bg-amber-300 text-slate-950 font-black px-4 py-3 rounded-xl text-xs sm:text-sm cursor-pointer shadow-lg"
+              >
+                {generatingPool
+                  ? "Generando Tablas..."
+                  : `⚡ Generar / Completar ${adminPoolSizeInput} Tablas`}
+              </button>
+            </div>
+          </div>
+
+          {/* Resumen de estado del Talonario */}
+          {(() => {
+            const totalInPool = gameState.cards.length;
+            const availableInPool = gameState.cards.filter(
+              (c) => c.status === "DISPONIBLE"
+            ).length;
+            const soldInPool = totalInPool - availableInPool;
+
+            return (
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+                {/* Sub-panel A: Repartir Talonario por Rangos a Vendedores */}
+                <div className="lg:col-span-5 bg-slate-950 border-2 border-sky-500/60 rounded-2xl p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black uppercase text-sky-400">
+                      📦 1. Repartir Tablas a Vendedores (Trazabilidad)
+                    </span>
+                    <span className="text-xs font-bold text-slate-400">
+                      Total: {totalInPool} ({availableInPool} libres / {soldInPool} vendidas)
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-300">
+                    Si tienes 100 tablas y 2 vendedores, asígnale de la #1 a la #50 al Vendedor 1 y de la #51 a la #100 al Vendedor 2.
+                  </p>
+
+                  <form
+                    onSubmit={async (e) => {
+                      e.preventDefault();
+                      await postAction({
+                        action: "ASSIGN_CARDS_TO_SELLER",
+                        fromNumber: assignFromNum,
+                        toNumber: assignToNum,
+                        sellerId: assignSellerId,
+                      });
+                    }}
+                    className="grid grid-cols-2 sm:grid-cols-4 gap-2 items-end pt-1"
+                  >
+                    <div>
+                      <label className="block text-[10px] font-black uppercase text-slate-400 mb-1">
+                        Desde Tabla #
+                      </label>
+                      <input
+                        type="number"
+                        min={1}
+                        max={totalInPool || 1000}
+                        value={assignFromNum}
+                        onChange={(e) =>
+                          setAssignFromNum(Math.max(1, Number(e.target.value) || 1))
+                        }
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-2 text-xs font-black text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-black uppercase text-slate-400 mb-1">
+                        Hasta Tabla #
+                      </label>
+                      <input
+                        type="number"
+                        min={1}
+                        max={totalInPool || 1000}
+                        value={assignToNum}
+                        onChange={(e) =>
+                          setAssignToNum(Math.max(1, Number(e.target.value) || 50))
+                        }
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-2 text-xs font-black text-white"
+                      />
+                    </div>
+                    <div className="col-span-2">
+                      <label className="block text-[10px] font-black uppercase text-sky-300 mb-1">
+                        Vendedor Responsable
+                      </label>
+                      <select
+                        value={assignSellerId}
+                        onChange={(e) => setAssignSellerId(e.target.value)}
+                        className="w-full bg-slate-900 border border-sky-400 rounded-xl px-2.5 py-2 text-xs font-bold text-sky-300 cursor-pointer"
+                      >
+                        <option value="">🔓 Libre en Caja General</option>
+                        {(gameState.sellers || []).map((s) => (
+                          <option key={s.id} value={s.id}>
+                            💼 {s.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <button
+                      type="submit"
+                      className="col-span-2 sm:col-span-4 bg-sky-500 hover:bg-sky-400 text-slate-950 font-black py-2 px-3 rounded-xl text-xs cursor-pointer"
+                    >
+                      📌 Asignar Tablas #{String(assignFromNum).padStart(5, "0")} a #{String(assignToNum).padStart(5, "0")}
+                    </button>
+                  </form>
+                </div>
+
+                {/* Sub-panel B: Crear Enlace Temporal para que el Cliente elija sus X Tablas */}
+                <div className="lg:col-span-7 bg-slate-950 border-2 border-emerald-500/70 rounded-2xl p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black uppercase text-emerald-400">
+                      🔗 2. Crear Enlace Rápido para que el Cliente Elija sus Tablas
+                    </span>
+                    <span className="bg-emerald-500/20 text-emerald-300 text-[11px] font-black px-2.5 py-0.5 rounded-full">
+                      Se cierra solo al confirmar
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-300">
+                    El cliente verá todas las tablas disponibles (con los espacios ocupados de las ya vendidas) y solo podrá elegir la cantidad exacta que tú le autorices aquí.
+                  </p>
+
+                  <form
+                    onSubmit={async (e) => {
+                      e.preventDefault();
+                      if (!selBuyerName.trim()) return;
+                      const res = await postAction({
+                        action: "CREATE_SELECTION_LINK",
+                        buyerName: selBuyerName,
+                        buyerPhone: selBuyerPhone,
+                        allowedQuantity: selAllowedQty,
+                        sellerId: selSellerId || undefined,
+                      });
+                      if (res.ok) {
+                        setSelBuyerName("");
+                        setSelBuyerPhone("");
+                      }
+                    }}
+                    className="grid grid-cols-1 sm:grid-cols-4 gap-2 items-end pt-1"
+                  >
+                    <div>
+                      <label className="block text-[10px] font-black uppercase text-slate-400 mb-1">
+                        Nombre del Cliente
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="Ej. Pedro Salazar"
+                        value={selBuyerName}
+                        onChange={(e) => setSelBuyerName(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-black uppercase text-slate-400 mb-1">
+                        WhatsApp Cliente
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="099..."
+                        value={selBuyerPhone}
+                        onChange={(e) => setSelBuyerPhone(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-black uppercase text-amber-300 mb-1">
+                        Vale por Exactamente
+                      </label>
+                      <select
+                        value={selAllowedQty}
+                        onChange={(e) => setSelAllowedQty(Number(e.target.value))}
+                        className="w-full bg-slate-900 border-2 border-amber-400 rounded-xl px-2.5 py-2 text-xs font-black text-amber-300 cursor-pointer"
+                      >
+                        {[1, 2, 3, 4, 5, 6, 8, 10, 12, 15, 20].map((q) => (
+                          <option key={q} value={q}>
+                            Elegir {q} {q === 1 ? "Tabla" : "Tablas"}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-black uppercase text-slate-400 mb-1">
+                        Talonario / Vendedor
+                      </label>
+                      <select
+                        value={selSellerId}
+                        onChange={(e) => setSelSellerId(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-2 text-xs font-bold text-slate-200 cursor-pointer"
+                      >
+                        <option value="">Caja General (Todas)</option>
+                        {(gameState.sellers || []).map((s) => (
+                          <option key={s.id} value={s.id}>
+                            💼 Lote de {s.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <button
+                      type="submit"
+                      className="sm:col-span-4 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-2.5 px-4 rounded-xl text-xs sm:text-sm cursor-pointer shadow-lg"
+                    >
+                      🔗 Generar Link para que "{selBuyerName || "el cliente"}" Elija Exactamente {selAllowedQty} {selAllowedQty === 1 ? "Tabla" : "Tablas"}
+                    </button>
+                  </form>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Lista de Enlaces de Elección Creados (Activos y Completados) */}
+          {(gameState.selectionLinks || []).length > 0 && (
+            <div className="space-y-2 pt-2 border-t border-slate-800">
+              <div className="text-xs font-black uppercase text-amber-300">
+                📲 Enlaces de Selección de Tablas Enviados a Clientes ({(gameState.selectionLinks || []).length})
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {(gameState.selectionLinks || []).map((lnk) => {
+                  const choosePath = `/elegir/${lnk.code}`;
+                  const origin =
+                    typeof window !== "undefined"
+                      ? window.location.origin
+                      : "http://localhost:3000";
+                  const fullChooseUrl = `${origin}${choosePath}`;
+                  const waText = `🎟️ *${gameState.event.title}* 🎟️\nHola *${lnk.buyerName}*, entra a este enlace para ver las tablas disponibles y *elegir tus ${lnk.allowedQuantity} ${lnk.allowedQuantity === 1 ? "tabla favorita" : "tablas favoritas"}*:\n\n👉 ${fullChooseUrl}\n\n🔒 _Una vez que confirmes tus ${lnk.allowedQuantity} tablas, el enlace se cerrará y quedarán guardadas a tu nombre._`;
+                  const cleanPhone = (lnk.buyerPhone || "").replace(/\D/g, "");
+                  const ecPhone = cleanPhone.startsWith("0")
+                    ? `593${cleanPhone.slice(1)}`
+                    : cleanPhone;
+                  const waShare = ecPhone
+                    ? `https://wa.me/${ecPhone}?text=${encodeURIComponent(waText)}`
+                    : `https://wa.me/?text=${encodeURIComponent(waText)}`;
+
+                  return (
+                    <div
+                      key={lnk.id}
+                      className={`rounded-2xl p-3.5 border-2 flex flex-col justify-between space-y-2.5 ${
+                        lnk.status === "ACTIVO"
+                          ? "bg-slate-950 border-amber-400"
+                          : "bg-slate-950/60 border-emerald-600/60"
+                      }`}
+                    >
+                      <div>
+                        <div className="flex items-center justify-between gap-2">
+                          <span
+                            className={`text-[11px] font-black px-2.5 py-0.5 rounded-full ${
+                              lnk.status === "ACTIVO"
+                                ? "bg-amber-400 text-slate-950"
+                                : "bg-emerald-500 text-slate-950"
+                            }`}
+                          >
+                            {lnk.status === "ACTIVO"
+                              ? `⏳ ESPERANDO QUE ELIJA (${lnk.allowedQuantity} TABLAS)`
+                              : `✔ YA ELIGIÓ (${lnk.selectedCardNumbers.map((n) => `#${n}`).join(", ")})`}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              postAction({
+                                action: "DELETE_SELECTION_LINK",
+                                linkId: lnk.id,
+                              })
+                            }
+                            className="text-red-400 hover:text-red-300 text-xs font-bold cursor-pointer"
+                            title="Eliminar este enlace"
+                          >
+                            🗑️
+                          </button>
+                        </div>
+
+                        <div className="text-base font-black text-white mt-1.5">
+                          {lnk.buyerName}
+                        </div>
+                        <div className="text-xs text-slate-400 font-mono">
+                          {choosePath}
+                          {lnk.sellerName ? ` • 💼 ${lnk.sellerName}` : ""}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 pt-1">
+                        {lnk.status === "ACTIVO" ? (
+                          <>
+                            <a
+                              href={waShare}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs py-2 px-2.5 rounded-xl text-center"
+                            >
+                              📲 Mandar por WhatsApp
+                            </a>
+                            <a
+                              href={choosePath}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs py-2 px-2.5 rounded-xl border border-slate-700"
+                            >
+                              Abrir ↗
+                            </a>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                navigator.clipboard.writeText(fullChooseUrl);
+                                setCopiedToken(lnk.code);
+                                setTimeout(() => setCopiedToken(null), 2000);
+                              }}
+                              className="bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold text-xs py-2 px-2.5 rounded-xl border border-slate-700 cursor-pointer"
+                            >
+                              {copiedToken === lnk.code ? "✔" : "Copiar"}
+                            </button>
+                          </>
+                        ) : (
+                          <a
+                            href={`/jugar/${lnk.finalPlayerToken}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="w-full bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/50 text-emerald-300 font-black text-xs py-2 px-3 rounded-xl text-center"
+                          >
+                            🎱 Ver Tablas Elegidas ({lnk.selectedCardNumbers.map((n) => `#${n}`).join(", ")}) ↗
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </section>
+
+        {/* =================================================================== */}
         {/* PASO 4: GESTIÓN DE CARTONES, LINKS DE WHATSAPP Y CONTROL DE IP      */}
         {/* =================================================================== */}
         <section className="bg-slate-900 border-2 border-slate-700 rounded-3xl p-5 sm:p-6 shadow-xl">
@@ -1660,6 +2040,7 @@ export default function AdminOrganizerPage() {
             >();
 
             for (const c of gameState.cards) {
+              if (c.status === "DISPONIBLE") continue;
               let grp = mapByToken.get(c.secretToken);
               if (!grp) {
                 grp = {
@@ -1890,12 +2271,15 @@ export default function AdminOrganizerPage() {
           {(() => {
             const unitPrice = parsePriceUsd(gameState.event.priceText);
             const sellersList = gameState.sellers || [];
-            const totalCards = gameState.cards.length;
+            const soldCardsList = gameState.cards.filter(
+              (c) => c.status !== "DISPONIBLE"
+            );
+            const totalCards = soldCardsList.length;
             const totalGross = totalCards * unitPrice;
 
             let totalCommissions = 0;
             for (const s of sellersList) {
-              const count = gameState.cards.filter(
+              const count = soldCardsList.filter(
                 (c) => c.soldBySellerId === s.id
               ).length;
               totalCommissions +=
@@ -1950,13 +2334,28 @@ export default function AdminOrganizerPage() {
                 {/* Tarjetas de cada Vendedor */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {sellersList.map((s) => {
-                    const soldCount = gameState.cards.filter(
+                    const assignedCards = gameState.cards.filter(
+                      (c) => c.assignedSellerId === s.id
+                    );
+                    const assignedAvailCount = assignedCards.filter(
+                      (c) => c.status === "DISPONIBLE"
+                    ).length;
+                    const soldCount = soldCardsList.filter(
                       (c) => c.soldBySellerId === s.id
                     ).length;
                     const gross = soldCount * unitPrice;
                     const comm = gross * ((s.commissionPercent || 0) / 100);
                     const toDeliver = gross - comm;
                     const sellerPath = `/vendedor/${s.sellerCode}`;
+
+                    const minAssignedNum =
+                      assignedCards.length > 0
+                        ? assignedCards[0].cardNumber
+                        : null;
+                    const maxAssignedNum =
+                      assignedCards.length > 0
+                        ? assignedCards[assignedCards.length - 1].cardNumber
+                        : null;
 
                     return (
                       <div
@@ -1972,7 +2371,7 @@ export default function AdminOrganizerPage() {
                                   : "bg-red-950 text-red-400 border border-red-600"
                               }`}
                             >
-                              {s.active ? "● Caha Activa" : "● Pausado"}
+                              {s.active ? "● Caja Activa" : "● Pausado"}
                             </span>
                             <span className="text-xs font-black text-sky-300">
                               Comisión: {s.commissionPercent}%
@@ -1984,6 +2383,11 @@ export default function AdminOrganizerPage() {
                           <p className="text-xs text-slate-400 font-mono">
                             Link POS: {sellerPath}
                           </p>
+                          <p className="text-xs font-bold text-amber-300 mt-1">
+                            {assignedCards.length > 0
+                              ? `📦 Talonario Asignado: ${assignedCards.length} tablas (#${minAssignedNum} a #${maxAssignedNum}) • Libres: ${assignedAvailCount}`
+                              : "📦 Sin lote fijo (vende del talonario general)"}
+                          </p>
 
                           <div className="mt-3 bg-slate-900 rounded-xl p-2.5 grid grid-cols-3 gap-2 text-center border border-slate-800">
                             <div>
@@ -1992,6 +2396,9 @@ export default function AdminOrganizerPage() {
                               </div>
                               <div className="text-sm font-black text-white">
                                 {soldCount}
+                                {assignedCards.length > 0
+                                  ? ` / ${assignedCards.length}`
+                                  : ""}
                               </div>
                             </div>
                             <div>

@@ -25,6 +25,9 @@ export default function SellerPosPage() {
   const [buyerName, setBuyerName] = useState<string>("");
   const [buyerPhone, setBuyerPhone] = useState<string>("");
   const [quantity, setQuantity] = useState<number>(1);
+  const [selBuyerName, setSelBuyerName] = useState<string>("");
+  const [selBuyerPhone, setSelBuyerPhone] = useState<string>("");
+  const [selAllowedQty, setSelAllowedQty] = useState<number>(3);
   const [statusMessage, setStatusMessage] = useState<{
     type: "ok" | "error";
     text: string;
@@ -142,11 +145,55 @@ export default function SellerPosPage() {
 
   const unitPrice = parsePriceUsd(gameState.event.priceText);
   const mySoldCards = gameState.cards.filter(
-    (c) => c.soldBySellerId === seller.id
+    (c) => c.soldBySellerId === seller.id && c.status !== "DISPONIBLE"
+  );
+  const myAssignedPoolCards = gameState.cards.filter(
+    (c) => c.assignedSellerId === seller.id
+  );
+  const myAvailablePoolCards = myAssignedPoolCards.filter(
+    (c) => c.status === "DISPONIBLE"
+  );
+  const totalAvailablePoolCards = gameState.cards.filter(
+    (c) => c.status === "DISPONIBLE" && (!c.assignedSellerId || c.assignedSellerId === seller.id)
+  );
+  const mySelectionLinks = (gameState.selectionLinks || []).filter(
+    (l) => l.sellerId === seller.id
   );
   const totalGrossUsd = mySoldCards.length * unitPrice;
   const myCommissionUsd = totalGrossUsd * ((seller.commissionPercent || 0) / 100);
   const netToOrganizerUsd = totalGrossUsd - myCommissionUsd;
+
+  const handleCreateSelectionLink = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selBuyerName.trim()) return;
+    const res = await fetch("/api/bingo", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "CREATE_SELECTION_LINK",
+        sellerCode,
+        buyerName: selBuyerName,
+        buyerPhone: selBuyerPhone,
+        allowedQuantity: selAllowedQty,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) {
+      setStatusMessage({
+        type: "error",
+        text: data.message || "No se pudo crear el link de elección.",
+      });
+      return;
+    }
+    setGameState(data.state);
+    setSelBuyerName("");
+    setSelBuyerPhone("");
+    setStatusMessage({
+      type: "ok",
+      text: `✅ Link temporal creado para ${selBuyerName} (Vale por ${selAllowedQty} tablas). Envíalo por WhatsApp.`,
+    });
+    setTimeout(() => setStatusMessage(null), 5000);
+  };
 
   const getWhatsAppShareUrl = (
     cardNumbers: string[],
@@ -291,8 +338,18 @@ export default function SellerPosPage() {
             </div>
             {plan && (
               <span className="bg-slate-950 border border-slate-700 px-3 py-1.5 rounded-xl text-xs font-bold text-slate-300">
-                Cupo del Evento: {gameState.cards.length} /{" "}
-                {plan.maxCardsPerEvent} tablas
+                {myAssignedPoolCards.length > 0 ? (
+                  <>
+                    📦 Tu Lote Asignado: {myAssignedPoolCards.length} tablas (
+                    {myAvailablePoolCards.length} disponibles)
+                  </>
+                ) : (
+                  <>
+                    Cupo del Evento:{" "}
+                    {gameState.cards.filter((c) => c.status !== "DISPONIBLE").length} /{" "}
+                    {gameState.pregeneratedPoolSize || plan.maxCardsPerEvent} tablas
+                  </>
+                )}
               </span>
             )}
           </div>
@@ -351,6 +408,174 @@ export default function SellerPosPage() {
               ➕ Vender {quantity} {quantity === 1 ? "Tabla" : "Tablas"}
             </button>
           </form>
+        </section>
+
+        {/* ENLACE DE ELECCIÓN PARA EL CLIENTE ("VALE POR X TABLAS") */}
+        <section className="bg-slate-900 border-4 border-fuchsia-500 rounded-3xl p-5 sm:p-6 shadow-2xl space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h2 className="text-xl sm:text-2xl font-black text-fuchsia-400">
+                🔗 Enviar Link para que el Cliente Elija sus Tablas (&ldquo;Vale por X Tablas&rdquo;)
+              </h2>
+              <p className="text-slate-300 text-sm">
+                El cliente abre el enlace, ve las tablas disponibles de tu talonario con sus números, elige las que le gustan y el enlace se cierra automáticamente.
+              </p>
+            </div>
+            <div className="bg-slate-950 border border-fuchsia-500/40 px-3 py-1.5 rounded-xl text-xs font-black text-fuchsia-300">
+              {myAssignedPoolCards.length > 0 ? (
+                <>
+                  📦 Tu Talonario: #{myAssignedPoolCards[0]?.cardNumber} a #
+                  {myAssignedPoolCards[myAssignedPoolCards.length - 1]?.cardNumber} •{" "}
+                  <span className="text-emerald-400">
+                    {myAvailablePoolCards.length} Libres
+                  </span>
+                </>
+              ) : (
+                <>
+                  📦 Tablas Libres para Elegir: {totalAvailablePoolCards.length}
+                </>
+              )}
+            </div>
+          </div>
+
+          <form
+            onSubmit={handleCreateSelectionLink}
+            className="grid grid-cols-1 sm:grid-cols-4 gap-3"
+          >
+            <input
+              type="text"
+              required
+              disabled={!seller.active}
+              placeholder="Nombre del cliente"
+              value={selBuyerName}
+              onChange={(e) => setSelBuyerName(e.target.value)}
+              className="sm:col-span-1 bg-slate-950 border-2 border-slate-700 rounded-xl px-4 py-3 text-base font-bold text-white"
+            />
+            <input
+              type="text"
+              disabled={!seller.active}
+              placeholder="WhatsApp (ej. 0991234567)"
+              value={selBuyerPhone}
+              onChange={(e) => setSelBuyerPhone(e.target.value)}
+              className="sm:col-span-1 bg-slate-950 border-2 border-slate-700 rounded-xl px-4 py-3 text-base font-bold text-white"
+            />
+            <select
+              value={selAllowedQty}
+              disabled={!seller.active}
+              onChange={(e) => setSelAllowedQty(Number(e.target.value))}
+              className="sm:col-span-1 bg-slate-950 border-2 border-fuchsia-400 rounded-xl px-4 py-3 text-base font-black text-fuchsia-300 cursor-pointer"
+            >
+              {[1, 2, 3, 4, 5, 6, 8, 10, 12, 15, 20].map((q) => (
+                <option key={q} value={q}>
+                  Vale por {q} {q === 1 ? "Tabla" : "Tablas"} ($
+                  {(q * unitPrice).toFixed(2)})
+                </option>
+              ))}
+            </select>
+            <button
+              type="submit"
+              disabled={!seller.active || totalAvailablePoolCards.length === 0}
+              className="sm:col-span-1 bg-fuchsia-500 hover:bg-fuchsia-400 disabled:opacity-50 text-white font-black px-5 py-3 rounded-xl text-sm sm:text-base shadow-lg cursor-pointer"
+            >
+              🔗 Crear Link ({selAllowedQty} {selAllowedQty === 1 ? "Tabla" : "Tablas"})
+            </button>
+          </form>
+
+          {mySelectionLinks.length > 0 && (
+            <div className="space-y-2 pt-3 border-t border-slate-800">
+              <div className="text-xs font-extrabold uppercase text-slate-400">
+                Enlaces de Elección Creados por Ti ({mySelectionLinks.length}):
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {mySelectionLinks.map((lnk) => {
+                  const origin =
+                    typeof window !== "undefined"
+                      ? window.location.origin
+                      : "http://localhost:3000";
+                  const selectUrl = `${origin}/elegir/${lnk.code}`;
+                  const waText = `🎉 *${gameState.event.title}* 🎉\nHola *${lnk.buyerName}*, te saluda *${seller.name}*. Aquí tienes tu enlace personal para que *elijas tus ${lnk.allowedQuantity} ${lnk.allowedQuantity === 1 ? "tabla" : "tablas"} de la suerte* viendo todos los números disponibles:\n\n👉 *Toca aquí para elegir tus tablas:*\n${selectUrl}\n\n🔒 _Enlace de 1 solo uso: apenas confirmes tus tablas se guardarán a tu nombre automáticamente._`;
+                  const cleanPhone = (lnk.buyerPhone || "").replace(/\D/g, "");
+                  const ecPhone = cleanPhone.startsWith("0")
+                    ? `593${cleanPhone.slice(1)}`
+                    : cleanPhone;
+                  const waLink = ecPhone
+                    ? `https://wa.me/${ecPhone}?text=${encodeURIComponent(waText)}`
+                    : `https://wa.me/?text=${encodeURIComponent(waText)}`;
+
+                  return (
+                    <div
+                      key={lnk.id}
+                      className={`p-3.5 rounded-2xl border-2 flex flex-col justify-between gap-2 ${
+                        lnk.status === "COMPLETADO"
+                          ? "bg-slate-950/70 border-emerald-500/40"
+                          : "bg-slate-950 border-fuchsia-500/60"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span
+                          className={`text-[11px] font-black px-2.5 py-0.5 rounded-full ${
+                            lnk.status === "COMPLETADO"
+                              ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
+                              : "bg-fuchsia-500/20 text-fuchsia-300 border border-fuchsia-500/40"
+                          }`}
+                        >
+                          {lnk.status === "COMPLETADO"
+                            ? `✅ ELEGIDAS (#${lnk.selectedCardNumbers.join(", #")})`
+                            : `⏳ PENDIENTE DE ELEGIR (${lnk.allowedQuantity} TABLAS)`}
+                        </span>
+                      </div>
+
+                      <div>
+                        <div className="font-black text-white text-sm">
+                          {lnk.buyerName}{" "}
+                          <span className="text-xs text-slate-400 font-normal">
+                            ({lnk.buyerPhone || "Sin tel"})
+                          </span>
+                        </div>
+                        <div className="text-xs text-slate-400 font-mono truncate">
+                          /elegir/{lnk.code}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 pt-1">
+                        {lnk.status === "ACTIVO" ? (
+                          <>
+                            <a
+                              href={waLink}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs py-2 px-3 rounded-xl text-center"
+                            >
+                              📲 Enviar Link por WhatsApp
+                            </a>
+                            <a
+                              href={`/elegir/${lnk.code}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs py-2 px-3 rounded-xl border border-slate-700"
+                            >
+                              Abrir ↗
+                            </a>
+                          </>
+                        ) : (
+                          lnk.finalPlayerToken && (
+                            <a
+                              href={`/jugar/${lnk.finalPlayerToken}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="flex-1 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs py-2 px-3 rounded-xl text-center"
+                            >
+                              🎟️ Ver Tablas del Cliente (/jugar/{lnk.finalPlayerToken})
+                            </a>
+                          )
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </section>
 
         {/* LISTA DE CLIENTES ATENDIDOS POR ESTE VENDEDOR */}
