@@ -42,23 +42,23 @@ export const STAGES: Record<StageType, StageInfo> = {
   },
   LINEA_Y_PUNTA: {
     id: "LINEA_Y_PUNTA",
-    label: "Línea + Punta (Ambos en la misma tabla)",
-    shortLabel: "LÍNEA + PUNTA",
-    description: "Acierta una Línea completa Y además una Punta/Esquina",
+    label: "Línea o Punta (Cualquiera de las dos)",
+    shortLabel: "LÍNEA O PUNTA",
+    description: "Gana con una Línea completa O con una Punta/Esquina",
     icon: "🎯",
   },
   LINEA_Y_ESQUINAS: {
     id: "LINEA_Y_ESQUINAS",
-    label: "Línea + 4 Esquinas (Ambos en la misma tabla)",
-    shortLabel: "LÍNEA + 4 ESQUINAS",
-    description: "Acierta una Línea completa Y las 4 Esquinas completas",
+    label: "Línea o 4 Esquinas (Cualquiera de las dos)",
+    shortLabel: "LÍNEA O 4 ESQUINAS",
+    description: "Gana con una Línea completa O con las 4 Esquinas",
     icon: "⭐",
   },
   PUNTA_Y_ESQUINAS: {
     id: "PUNTA_Y_ESQUINAS",
-    label: "Punta + 4 Esquinas",
-    shortLabel: "PUNTA + 4 ESQUINAS",
-    description: "Acierta la primera Punta y luego las 4 Esquinas",
+    label: "Punta o 4 Esquinas",
+    shortLabel: "PUNTA O 4 ESQUINAS",
+    description: "Gana con la primera Punta O con las 4 Esquinas",
     icon: "✨",
   },
   BINGO_LOCO: {
@@ -366,20 +366,23 @@ export function validateTablePattern(
     };
   }
 
-  // 3-B. MODO DOBLE JUEGO: LÍNEA + PUNTA
+  // 3-B. MODO: LÍNEA O PUNTA (Cualquiera de las dos que haga primero)
   if (stage === "LINEA_Y_PUNTA") {
-    // Validar línea
-    let winningLineCells: [number, number][] | null = null;
-    let winningLineName = "";
+    // 1. Revisar si completó alguna línea
     for (const line of candidateLines) {
       if (line.cells.every(([r, c]) => isCellDrawn(r, c))) {
-        winningLineCells = line.cells;
-        winningLineName = line.name;
-        break;
+        const isMarked = line.cells.every(([r, c]) => isCellMarked(r, c));
+        return {
+          isValidOfficial: true,
+          isMarkedByPlayer: isMarked,
+          patternName: `${line.name} (Línea o Punta)`,
+          winningCells: line.cells,
+          missingOfficialNumbers: [],
+        };
       }
     }
 
-    // Validar punta
+    // 2. Revisar si completó alguna punta
     const corners: { name: string; coord: [number, number] }[] = [
       { name: "Punta Sup B", coord: [0, 0] },
       { name: "Punta Sup O", coord: [0, 4] },
@@ -387,23 +390,13 @@ export function validateTablePattern(
       { name: "Punta Inf O", coord: [4, 4] },
     ];
     const hitCorners = corners.filter(({ coord: [r, c] }) => isCellDrawn(r, c));
-
-    if (winningLineCells && hitCorners.length > 0) {
-      const combinedWinningCells: [number, number][] = [
-        ...winningLineCells,
-        ...hitCorners.map((h) => h.coord),
-      ];
-      // Remover duplicados en caso de que la línea comparta la punta
-      const uniqueWinningCells = combinedWinningCells.filter(
-        (cell, idx, arr) =>
-          arr.findIndex(([r, c]) => r === cell[0] && c === cell[1]) === idx
-      );
-      const isMarked = uniqueWinningCells.every(([r, c]) => isCellMarked(r, c));
+    if (hitCorners.length > 0) {
+      const isMarked = hitCorners.some(({ coord: [r, c] }) => isCellMarked(r, c));
       return {
         isValidOfficial: true,
         isMarkedByPlayer: isMarked,
-        patternName: `${winningLineName} + ${hitCorners[0].name}`,
-        winningCells: uniqueWinningCells,
+        patternName: `${hitCorners[0].name} (Línea o Punta)`,
+        winningCells: [hitCorners[0].coord],
         missingOfficialNumbers: [],
       };
     }
@@ -411,27 +404,29 @@ export function validateTablePattern(
     return {
       isValidOfficial: false,
       isMarkedByPlayer: false,
-      patternName: "Línea + Punta",
+      patternName: "Línea o Punta",
       winningCells: [],
-      missingOfficialNumbers: [
-        ...(winningLineCells ? [] : [grid[0][0]]),
-        ...(hitCorners.length > 0 ? [] : [grid[4][4]]),
-      ],
+      missingOfficialNumbers: corners.map(({ coord: [r, c] }) => grid[r][c]),
     };
   }
 
-  // 3-C. MODO DOBLE JUEGO: LÍNEA + 4 ESQUINAS
+  // 3-C. MODO: LÍNEA O 4 ESQUINAS (Cualquiera de las dos que haga primero)
   if (stage === "LINEA_Y_ESQUINAS") {
-    let winningLineCells: [number, number][] | null = null;
-    let winningLineName = "";
+    // 1. Revisar si completó alguna línea
     for (const line of candidateLines) {
       if (line.cells.every(([r, c]) => isCellDrawn(r, c))) {
-        winningLineCells = line.cells;
-        winningLineName = line.name;
-        break;
+        const isMarked = line.cells.every(([r, c]) => isCellMarked(r, c));
+        return {
+          isValidOfficial: true,
+          isMarkedByPlayer: isMarked,
+          patternName: `${line.name} (Línea o 4 Esquinas)`,
+          winningCells: line.cells,
+          missingOfficialNumbers: [],
+        };
       }
     }
 
+    // 2. Revisar si completó las 4 esquinas
     const corners: [number, number][] = [
       [0, 0],
       [0, 4],
@@ -442,18 +437,13 @@ export function validateTablePattern(
       .filter(([r, c]) => !isCellDrawn(r, c))
       .map(([r, c]) => grid[r][c]);
 
-    if (winningLineCells && missingCorners.length === 0) {
-      const combined = [...winningLineCells, ...corners];
-      const uniqueWinningCells = combined.filter(
-        (cell, idx, arr) =>
-          arr.findIndex(([r, c]) => r === cell[0] && c === cell[1]) === idx
-      );
-      const isMarked = uniqueWinningCells.every(([r, c]) => isCellMarked(r, c));
+    if (missingCorners.length === 0) {
+      const isMarked = corners.every(([r, c]) => isCellMarked(r, c));
       return {
         isValidOfficial: true,
         isMarkedByPlayer: isMarked,
-        patternName: `${winningLineName} + 4 Esquinas`,
-        winningCells: uniqueWinningCells,
+        patternName: "4 Esquinas (Línea o 4 Esquinas)",
+        winningCells: corners,
         missingOfficialNumbers: [],
       };
     }
@@ -461,32 +451,61 @@ export function validateTablePattern(
     return {
       isValidOfficial: false,
       isMarkedByPlayer: false,
-      patternName: "Línea + 4 Esquinas",
+      patternName: "Línea o 4 Esquinas",
       winningCells: [],
-      missingOfficialNumbers: missingCorners.length > 0 ? missingCorners : [grid[2][0]],
+      missingOfficialNumbers: missingCorners,
     };
   }
 
-  // 3-D. MODO DOBLE JUEGO: PUNTA + 4 ESQUINAS
+  // 3-D. MODO: PUNTA O 4 ESQUINAS (Cualquiera de las dos que haga primero)
   if (stage === "PUNTA_Y_ESQUINAS") {
-    const corners: [number, number][] = [
+    const cornersCoords: [number, number][] = [
       [0, 0],
       [0, 4],
       [4, 0],
       [4, 4],
     ];
-    const missingOfficial = corners
+    const missingCorners = cornersCoords
       .filter(([r, c]) => !isCellDrawn(r, c))
       .map(([r, c]) => grid[r][c]);
-    const isValidOfficial = missingOfficial.length === 0;
-    const isMarkedByPlayer = corners.every(([r, c]) => isCellMarked(r, c));
+
+    // Si tiene las 4 esquinas completas
+    if (missingCorners.length === 0) {
+      const isMarked = cornersCoords.every(([r, c]) => isCellMarked(r, c));
+      return {
+        isValidOfficial: true,
+        isMarkedByPlayer: isMarked,
+        patternName: "4 Esquinas Completas",
+        winningCells: cornersCoords,
+        missingOfficialNumbers: [],
+      };
+    }
+
+    // Si tiene al menos una punta
+    const corners: { name: string; coord: [number, number] }[] = [
+      { name: "Punta Sup B", coord: [0, 0] },
+      { name: "Punta Sup O", coord: [0, 4] },
+      { name: "Punta Inf B", coord: [4, 0] },
+      { name: "Punta Inf O", coord: [4, 4] },
+    ];
+    const hitCorners = corners.filter(({ coord: [r, c] }) => isCellDrawn(r, c));
+    if (hitCorners.length > 0) {
+      const isMarked = hitCorners.some(({ coord: [r, c] }) => isCellMarked(r, c));
+      return {
+        isValidOfficial: true,
+        isMarkedByPlayer: isMarked,
+        patternName: hitCorners[0].name,
+        winningCells: [hitCorners[0].coord],
+        missingOfficialNumbers: [],
+      };
+    }
 
     return {
-      isValidOfficial,
-      isMarkedByPlayer,
-      patternName: "Punta + 4 Esquinas Completas",
-      winningCells: isValidOfficial ? corners : [],
-      missingOfficialNumbers: missingOfficial,
+      isValidOfficial: false,
+      isMarkedByPlayer: false,
+      patternName: "Punta o 4 Esquinas",
+      winningCells: [],
+      missingOfficialNumbers: missingCorners,
     };
   }
 
