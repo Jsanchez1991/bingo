@@ -4,7 +4,11 @@ export type StageType =
   | "ESQUINAS"
   | "BINGO_LOCO"
   | "LETRA"
-  | "LLENA";
+  | "LLENA"
+  // Combinaciones tradicionales de Bingos en Ecuador (2 juegos simultáneos en la misma tabla)
+  | "LINEA_Y_PUNTA"
+  | "LINEA_Y_ESQUINAS"
+  | "PUNTA_Y_ESQUINAS";
 
 export interface StageInfo {
   id: StageType;
@@ -36,6 +40,27 @@ export const STAGES: Record<StageType, StageInfo> = {
     description: "Completa las 4 esquinas superiores e inferiores de la tabla",
     icon: "四角",
   },
+  LINEA_Y_PUNTA: {
+    id: "LINEA_Y_PUNTA",
+    label: "Línea + Punta (Ambos en la misma tabla)",
+    shortLabel: "LÍNEA + PUNTA",
+    description: "Acierta una Línea completa Y además una Punta/Esquina",
+    icon: "🎯",
+  },
+  LINEA_Y_ESQUINAS: {
+    id: "LINEA_Y_ESQUINAS",
+    label: "Línea + 4 Esquinas (Ambos en la misma tabla)",
+    shortLabel: "LÍNEA + 4 ESQUINAS",
+    description: "Acierta una Línea completa Y las 4 Esquinas completas",
+    icon: "⭐",
+  },
+  PUNTA_Y_ESQUINAS: {
+    id: "PUNTA_Y_ESQUINAS",
+    label: "Punta + 4 Esquinas",
+    shortLabel: "PUNTA + 4 ESQUINAS",
+    description: "Acierta la primera Punta y luego las 4 Esquinas",
+    icon: "✨",
+  },
   BINGO_LOCO: {
     id: "BINGO_LOCO",
     label: "Bingo Loco (5 Números Cualesquiera)",
@@ -63,6 +88,9 @@ export const STAGE_ORDER: StageType[] = [
   "LINEA",
   "PUNTA",
   "ESQUINAS",
+  "LINEA_Y_PUNTA",
+  "LINEA_Y_ESQUINAS",
+  "PUNTA_Y_ESQUINAS",
   "BINGO_LOCO",
   "LETRA",
   "LLENA",
@@ -181,72 +209,74 @@ export function validateTablePattern(
   const isCellMarked = (r: number, c: number) =>
     (r === 2 && c === 2) || (grid[r][c] > 0 && markedSet.has(grid[r][c]));
 
+  // Construir las líneas posibles de la tabla (filas, columnas y diagonales)
+  const candidateLines: { name: string; cells: [number, number][] }[] = [];
+
+  for (let r = 0; r < 5; r++) {
+    const cells: [number, number][] = [
+      [r, 0],
+      [r, 1],
+      [r, 2],
+      [r, 3],
+      [r, 4],
+    ];
+    if (
+      cells.every(([ri, ci]) => (ri === 2 && ci === 2) || isCellNumber(ri, ci))
+    ) {
+      candidateLines.push({
+        name: `Línea Horizontal (Fila ${r + 1})`,
+        cells,
+      });
+    }
+  }
+
+  const colLetters = ["B", "I", "N", "G", "O"];
+  for (let c = 0; c < 5; c++) {
+    const cells: [number, number][] = [
+      [0, c],
+      [1, c],
+      [2, c],
+      [3, c],
+      [4, c],
+    ];
+    if (
+      cells.every(([ri, ci]) => (ri === 2 && ci === 2) || isCellNumber(ri, ci))
+    ) {
+      candidateLines.push({
+        name: `Línea Vertical (Columna ${colLetters[c]})`,
+        cells,
+      });
+    }
+  }
+
+  const diag1: [number, number][] = [
+    [0, 0],
+    [1, 1],
+    [2, 2],
+    [3, 3],
+    [4, 4],
+  ];
+  if (
+    diag1.every(([ri, ci]) => (ri === 2 && ci === 2) || isCellNumber(ri, ci))
+  ) {
+    candidateLines.push({ name: "Diagonal Principal (↘)", cells: diag1 });
+  }
+
+  const diag2: [number, number][] = [
+    [4, 0],
+    [3, 1],
+    [2, 2],
+    [1, 3],
+    [0, 4],
+  ];
+  if (
+    diag2.every(([ri, ci]) => (ri === 2 && ci === 2) || isCellNumber(ri, ci))
+  ) {
+    candidateLines.push({ name: "Diagonal Invertida (↗)", cells: diag2 });
+  }
+
   // 1. MODO LÍNEA
   if (stage === "LINEA") {
-    const candidateLines: { name: string; cells: [number, number][] }[] = [];
-
-    for (let r = 0; r < 5; r++) {
-      const cells: [number, number][] = [
-        [r, 0],
-        [r, 1],
-        [r, 2],
-        [r, 3],
-        [r, 4],
-      ];
-      if (
-        cells.every(([ri, ci]) => (ri === 2 && ci === 2) || isCellNumber(ri, ci))
-      ) {
-        candidateLines.push({
-          name: `Línea Horizontal (Fila ${r + 1})`,
-          cells,
-        });
-      }
-    }
-
-    const colLetters = ["B", "I", "N", "G", "O"];
-    for (let c = 0; c < 5; c++) {
-      const cells: [number, number][] = [
-        [0, c],
-        [1, c],
-        [2, c],
-        [3, c],
-        [4, c],
-      ];
-      if (
-        cells.every(([ri, ci]) => (ri === 2 && ci === 2) || isCellNumber(ri, ci))
-      ) {
-        candidateLines.push({
-          name: `Línea Vertical (Columna ${colLetters[c]})`,
-          cells,
-        });
-      }
-    }
-
-    const diag1: [number, number][] = [
-      [0, 0],
-      [1, 1],
-      [2, 2],
-      [3, 3],
-      [4, 4],
-    ];
-    if (
-      diag1.every(([ri, ci]) => (ri === 2 && ci === 2) || isCellNumber(ri, ci))
-    ) {
-      candidateLines.push({ name: "Diagonal Principal (↘)", cells: diag1 });
-    }
-
-    const diag2: [number, number][] = [
-      [4, 0],
-      [3, 1],
-      [2, 2],
-      [1, 3],
-      [0, 4],
-    ];
-    if (
-      diag2.every(([ri, ci]) => (ri === 2 && ci === 2) || isCellNumber(ri, ci))
-    ) {
-      candidateLines.push({ name: "Diagonal Invertida (↗)", cells: diag2 });
-    }
 
     for (const line of candidateLines) {
       const allDrawn = line.cells.every(([r, c]) => isCellDrawn(r, c));
@@ -331,6 +361,130 @@ export function validateTablePattern(
       isValidOfficial,
       isMarkedByPlayer,
       patternName: "4 Esquinas Completas",
+      winningCells: isValidOfficial ? corners : [],
+      missingOfficialNumbers: missingOfficial,
+    };
+  }
+
+  // 3-B. MODO DOBLE JUEGO: LÍNEA + PUNTA
+  if (stage === "LINEA_Y_PUNTA") {
+    // Validar línea
+    let winningLineCells: [number, number][] | null = null;
+    let winningLineName = "";
+    for (const line of candidateLines) {
+      if (line.cells.every(([r, c]) => isCellDrawn(r, c))) {
+        winningLineCells = line.cells;
+        winningLineName = line.name;
+        break;
+      }
+    }
+
+    // Validar punta
+    const corners: { name: string; coord: [number, number] }[] = [
+      { name: "Punta Sup B", coord: [0, 0] },
+      { name: "Punta Sup O", coord: [0, 4] },
+      { name: "Punta Inf B", coord: [4, 0] },
+      { name: "Punta Inf O", coord: [4, 4] },
+    ];
+    const hitCorners = corners.filter(({ coord: [r, c] }) => isCellDrawn(r, c));
+
+    if (winningLineCells && hitCorners.length > 0) {
+      const combinedWinningCells: [number, number][] = [
+        ...winningLineCells,
+        ...hitCorners.map((h) => h.coord),
+      ];
+      // Remover duplicados en caso de que la línea comparta la punta
+      const uniqueWinningCells = combinedWinningCells.filter(
+        (cell, idx, arr) =>
+          arr.findIndex(([r, c]) => r === cell[0] && c === cell[1]) === idx
+      );
+      const isMarked = uniqueWinningCells.every(([r, c]) => isCellMarked(r, c));
+      return {
+        isValidOfficial: true,
+        isMarkedByPlayer: isMarked,
+        patternName: `${winningLineName} + ${hitCorners[0].name}`,
+        winningCells: uniqueWinningCells,
+        missingOfficialNumbers: [],
+      };
+    }
+
+    return {
+      isValidOfficial: false,
+      isMarkedByPlayer: false,
+      patternName: "Línea + Punta",
+      winningCells: [],
+      missingOfficialNumbers: [
+        ...(winningLineCells ? [] : [grid[0][0]]),
+        ...(hitCorners.length > 0 ? [] : [grid[4][4]]),
+      ],
+    };
+  }
+
+  // 3-C. MODO DOBLE JUEGO: LÍNEA + 4 ESQUINAS
+  if (stage === "LINEA_Y_ESQUINAS") {
+    let winningLineCells: [number, number][] | null = null;
+    let winningLineName = "";
+    for (const line of candidateLines) {
+      if (line.cells.every(([r, c]) => isCellDrawn(r, c))) {
+        winningLineCells = line.cells;
+        winningLineName = line.name;
+        break;
+      }
+    }
+
+    const corners: [number, number][] = [
+      [0, 0],
+      [0, 4],
+      [4, 0],
+      [4, 4],
+    ];
+    const missingCorners = corners
+      .filter(([r, c]) => !isCellDrawn(r, c))
+      .map(([r, c]) => grid[r][c]);
+
+    if (winningLineCells && missingCorners.length === 0) {
+      const combined = [...winningLineCells, ...corners];
+      const uniqueWinningCells = combined.filter(
+        (cell, idx, arr) =>
+          arr.findIndex(([r, c]) => r === cell[0] && c === cell[1]) === idx
+      );
+      const isMarked = uniqueWinningCells.every(([r, c]) => isCellMarked(r, c));
+      return {
+        isValidOfficial: true,
+        isMarkedByPlayer: isMarked,
+        patternName: `${winningLineName} + 4 Esquinas`,
+        winningCells: uniqueWinningCells,
+        missingOfficialNumbers: [],
+      };
+    }
+
+    return {
+      isValidOfficial: false,
+      isMarkedByPlayer: false,
+      patternName: "Línea + 4 Esquinas",
+      winningCells: [],
+      missingOfficialNumbers: missingCorners.length > 0 ? missingCorners : [grid[2][0]],
+    };
+  }
+
+  // 3-D. MODO DOBLE JUEGO: PUNTA + 4 ESQUINAS
+  if (stage === "PUNTA_Y_ESQUINAS") {
+    const corners: [number, number][] = [
+      [0, 0],
+      [0, 4],
+      [4, 0],
+      [4, 4],
+    ];
+    const missingOfficial = corners
+      .filter(([r, c]) => !isCellDrawn(r, c))
+      .map(([r, c]) => grid[r][c]);
+    const isValidOfficial = missingOfficial.length === 0;
+    const isMarkedByPlayer = corners.every(([r, c]) => isCellMarked(r, c));
+
+    return {
+      isValidOfficial,
+      isMarkedByPlayer,
+      patternName: "Punta + 4 Esquinas Completas",
       winningCells: isValidOfficial ? corners : [],
       missingOfficialNumbers: missingOfficial,
     };
