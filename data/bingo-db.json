@@ -407,7 +407,7 @@
             "ipAddress": "::1",
             "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36",
             "lockedAt": "2026-10-20T01:50:35.199Z",
-            "lastSeenAt": "2026-10-20T02:25:42.919Z"
+            "lastSeenAt": "2026-10-20T02:43:48.784Z"
           },
           "eventId": "evt-solidario-01",
           "soldBySellerId": "sel-01",
@@ -690,7 +690,7 @@
             "ipAddress": "::1",
             "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36",
             "lockedAt": "2026-10-20T01:50:35.199Z",
-            "lastSeenAt": "2026-10-20T02:25:42.919Z"
+            "lastSeenAt": "2026-10-20T02:43:48.784Z"
           },
           "eventId": "evt-solidario-01",
           "soldBySellerId": "sel-01",
@@ -1816,7 +1816,7 @@
           "createdAt": "2026-10-19T20:50:15.420Z"
         }
       ],
-      "updatedAt": "2026-10-20T02:25:42.924Z"
+      "updatedAt": "2026-10-20T02:43:48.784Z"
     },
     "evt-tiktok-02": {
       "eventId": "evt-tiktok-02",
@@ -2551,5 +2551,5 @@
       "updatedAt": "2026-10-19T20:50:15.423Z"
     }
   },
-  "updatedAt": "2026-10-20T02:25:42.924Z"
+  "updatedAt": "2026-10-20T02:43:48.784Z"
 }

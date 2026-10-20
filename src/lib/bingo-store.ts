@@ -247,6 +247,98 @@ export interface SaasDatabase {
 const DATA_DIR = path.join(process.cwd(), "data");
 const DB_PATH = path.join(DATA_DIR, "bingo-db.json");
 
+let memoryCacheDb: SaasDatabase | null = null;
+let supabaseLoadedOnce = false;
+
+function getSupabaseCredentials(): { url: string; key: string } | null {
+  const url = (
+    process.env.NEXT_PUBLIC_SUPABASE_URL ||
+    process.env.SUPABASE_URL ||
+    "https://chmkdhdihafegzhdihnm.supabase.co"
+  ).replace(/\/$/, "");
+  const key =
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+    "sb_publishable_RGg6IQZyuGEsJ-gUQykXHQ_ppOGWDr6";
+  if (!url || !key) return null;
+  return { url, key };
+}
+
+/**
+ * Sincroniza el estado desde Supabase hacia la caché en memoria y archivo local.
+ */
+export async function syncFromSupabase(): Promise<void> {
+  const creds = getSupabaseCredentials();
+  if (!creds) return;
+  try {
+    const res = await fetch(
+      `${creds.url}/rest/v1/bingo_store?id=eq.main&select=payload,updated_at`,
+      {
+        method: "GET",
+        headers: {
+          apikey: creds.key,
+          Authorization: `Bearer ${creds.key}`,
+          "Content-Type": "application/json",
+        },
+        cache: "no-store",
+      }
+    );
+    if (!res.ok) return;
+    const rows = await res.json();
+    if (Array.isArray(rows) && rows.length > 0 && rows[0].payload) {
+      const remoteDb = rows[0].payload as SaasDatabase;
+      if (remoteDb && remoteDb.events && remoteDb.organizers) {
+        memoryCacheDb = remoteDb;
+        supabaseLoadedOnce = true;
+        try {
+          if (!fs.existsSync(DATA_DIR)) {
+            fs.mkdirSync(DATA_DIR, { recursive: true });
+          }
+          fs.writeFileSync(DB_PATH, JSON.stringify(remoteDb, null, 2), "utf-8");
+        } catch {
+          // En Vercel el sistema de archivos es de solo lectura; ignoramos
+        }
+      }
+    } else if (Array.isArray(rows) && rows.length === 0 && !supabaseLoadedOnce) {
+      // Si la tabla existe en Supabase pero está vacía, sembramos los datos iniciales
+      supabaseLoadedOnce = true;
+      const initial = readSaasDb();
+      await syncToSupabase(initial);
+    }
+  } catch {
+    // Si la tabla aún no ha sido creada o no hay red, continúa con archivo/memoria
+  }
+}
+
+/**
+ * Guarda la base de datos completa en Supabase (`bingo_store`).
+ */
+export async function syncToSupabase(db?: SaasDatabase): Promise<void> {
+  const creds = getSupabaseCredentials();
+  const payload = db || memoryCacheDb;
+  if (!creds || !payload) return;
+  try {
+    await fetch(`${creds.url}/rest/v1/bingo_store`, {
+      method: "POST",
+      headers: {
+        apikey: creds.key,
+        Authorization: `Bearer ${creds.key}`,
+        "Content-Type": "application/json",
+        Prefer: "resolution=merge-duplicates",
+      },
+      body: JSON.stringify({
+        id: "main",
+        payload,
+        updated_at: new Date().toISOString(),
+      }),
+      cache: "no-store",
+    });
+  } catch {
+    // Continúa sin interrumpir la petición
+  }
+}
+
 export function parsePriceUsd(priceText: string): number {
   const cleaned = (priceText || "").replace(/[^0-9.,]/g, "").replace(",", ".");
   const val = parseFloat(cleaned);
@@ -840,18 +932,16 @@ function getInitialSaasDatabase(): SaasDatabase {
 }
 
 export function readSaasDb(): SaasDatabase {
+  if (memoryCacheDb) {
+    return memoryCacheDb;
+  }
   try {
-    if (!fs.existsSync(DATA_DIR)) {
-      fs.mkdirSync(DATA_DIR, { recursive: true });
-    }
-    if (!fs.existsSync(DB_PATH)) {
-      const initial = getInitialSaasDatabase();
-      fs.writeFileSync(DB_PATH, JSON.stringify(initial, null, 2), "utf-8");
-      return initial;
-    }
-    const raw = JSON.parse(fs.readFileSync(DB_PATH, "utf-8"));
-    // Migración automática si el archivo era de la versión 1 (un solo evento)
-    if (!raw.version || !raw.events || !raw.organizers) {
+    if (fs.existsSync(DB_PATH)) {
+      const raw = JSON.parse(fs.readFileSync(DB_PATH, "utf-8"));
+      if (raw && raw.version && raw.events && raw.organizers) {
+        memoryCacheDb = raw as SaasDatabase;
+        return memoryCacheDb;
+      }
       const initial = getInitialSaasDatabase();
       const legacyEvent: BingoGameState = {
         ...raw,
@@ -861,21 +951,39 @@ export function readSaasDb(): SaasDatabase {
         sellers: initial.events["evt-solidario-01"].sellers,
       };
       initial.events["evt-solidario-01"] = legacyEvent;
-      fs.writeFileSync(DB_PATH, JSON.stringify(initial, null, 2), "utf-8");
+      memoryCacheDb = initial;
+      try {
+        fs.writeFileSync(DB_PATH, JSON.stringify(initial, null, 2), "utf-8");
+      } catch {}
       return initial;
     }
-    return raw as SaasDatabase;
+    const initial = getInitialSaasDatabase();
+    memoryCacheDb = initial;
+    try {
+      if (!fs.existsSync(DATA_DIR)) {
+        fs.mkdirSync(DATA_DIR, { recursive: true });
+      }
+      fs.writeFileSync(DB_PATH, JSON.stringify(initial, null, 2), "utf-8");
+    } catch {}
+    return initial;
   } catch {
-    return getInitialSaasDatabase();
+    const fallback = getInitialSaasDatabase();
+    memoryCacheDb = fallback;
+    return fallback;
   }
 }
 
 export function writeSaasDb(db: SaasDatabase): SaasDatabase {
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-  }
   db.updatedAt = new Date().toISOString();
-  fs.writeFileSync(DB_PATH, JSON.stringify(db, null, 2), "utf-8");
+  memoryCacheDb = db;
+  try {
+    if (!fs.existsSync(DATA_DIR)) {
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+    }
+    fs.writeFileSync(DB_PATH, JSON.stringify(db, null, 2), "utf-8");
+  } catch {
+    // En entornos serverless (Vercel) el sistema de archivos es read-only
+  }
   return db;
 }
 

@@ -10,6 +10,8 @@ import {
   submitPlayerClaim,
   createBingoCardSheet,
   createNewEventState,
+  syncFromSupabase,
+  syncToSupabase,
   WinnerRecord,
   BingoCardSheet,
   SAAS_PLANS,
@@ -67,6 +69,7 @@ function buildSaasSummary(requestedEventId?: string | null) {
 }
 
 export async function GET(req: NextRequest) {
+  await syncFromSupabase();
   const { searchParams } = new URL(req.url);
   const token = searchParams.get("token");
   const deviceId = searchParams.get("deviceId");
@@ -122,6 +125,7 @@ export async function GET(req: NextRequest) {
           pc.sessionLock = { ...lockObj };
         }
         writeGameState(state, state.eventId);
+        await syncToSupabase();
       } else if (primaryLock.deviceId === deviceId) {
         for (const pc of playerCards) {
           if (pc.sessionLock) {
@@ -130,6 +134,7 @@ export async function GET(req: NextRequest) {
           }
         }
         writeGameState(state, state.eventId);
+        await syncToSupabase();
       } else {
         accessAllowed = false;
       }
@@ -160,7 +165,14 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const res = await handlePostAction(req);
+  await syncToSupabase();
+  return res;
+}
+
+async function handlePostAction(req: NextRequest): Promise<NextResponse> {
   try {
+    await syncFromSupabase();
     const body = await req.json();
     const { action } = body;
     const requestedEventId = body.eventId as string | undefined;
