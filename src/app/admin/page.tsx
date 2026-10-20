@@ -403,23 +403,56 @@ export default function AdminOrganizerPage() {
     currentStageClaims[0] ||
     gameState.claims[0];
 
+  // Control para evitar rebotes de clics rápidos en el bolillero
+  const [togglingBall, setTogglingBall] = useState<number | null>(null);
+
   const handleToggleBallWithVoice = async (ballNum: number) => {
+    if (togglingBall !== null) return; // Evita doble clic o conflicto de red
+    setTogglingBall(ballNum);
+
     const wasAlreadyDrawn = drawnSet.has(ballNum);
-    await postAction({ action: "TOGGLE_BALL", ballNumber: ballNum });
+    // Actualización optimista local inmediata para que la bolilla no parpadee ni se desmarque
+    setGameState((prev) => {
+      if (!prev) return prev;
+      const nextDrawn = wasAlreadyDrawn
+        ? prev.drawnBalls.filter((b) => b !== ballNum)
+        : [...prev.drawnBalls, ballNum];
+      return { ...prev, drawnBalls: nextDrawn };
+    });
+
     if (!wasAlreadyDrawn) {
       announceBallVoice(ballNum, soundEnabled);
+    }
+
+    try {
+      await postAction({ action: "TOGGLE_BALL", ballNumber: ballNum });
+    } finally {
+      setTogglingBall(null);
     }
   };
 
   const handleDrawRandomOfficialBall = async () => {
+    if (togglingBall !== null) return;
     const remaining: number[] = [];
     for (let i = 1; i <= 75; i++) {
       if (!drawnSet.has(i)) remaining.push(i);
     }
     if (remaining.length === 0) return;
     const picked = remaining[Math.floor(Math.random() * remaining.length)];
-    await postAction({ action: "TOGGLE_BALL", ballNumber: picked });
+    setTogglingBall(picked);
+
+    setGameState((prev) => {
+      if (!prev) return prev;
+      return { ...prev, drawnBalls: [...prev.drawnBalls, picked] };
+    });
+
     announceBallVoice(picked, soundEnabled);
+
+    try {
+      await postAction({ action: "TOGGLE_BALL", ballNumber: picked });
+    } finally {
+      setTogglingBall(null);
+    }
   };
 
   const handleSaveEventCustomization = async (e: React.FormEvent) => {

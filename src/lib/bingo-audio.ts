@@ -112,19 +112,19 @@ export function announceBallVoice(ballNumber: number, soundEnabled: boolean = tr
   try {
     window.speechSynthesis.cancel();
     const letter = getBallLetter(ballNumber);
-    // Pronunciación clara en español para cada letra y número
+    // Pronunciación clara en español para cada letra (evita que el navegador confunda "Ene 33" con el mes de Enero de 1933)
     const letterSpoken =
       letter === "B"
-        ? "Be"
+        ? "Letra B"
         : letter === "I"
-        ? "I"
+        ? "Letra I"
         : letter === "N"
-        ? "Ene"
+        ? "Letra N"
         : letter === "G"
-        ? "Ge"
-        : "O";
+        ? "Letra G"
+        : "Letra O";
 
-    const text = `¡${letterSpoken}, ${ballNumber}! ... ${letterSpoken} ${ballNumber}`;
+    const text = `¡${letterSpoken}, número ${ballNumber}! ... ${letterSpoken}, ${ballNumber}`;
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = "es-EC";
     utterance.rate = 0.95;
