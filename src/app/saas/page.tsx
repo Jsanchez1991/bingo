@@ -48,7 +48,7 @@ export default function SaasSuperAdminPage() {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [accessCode, setAccessCode] = useState("");
-  const [planId, setPlanId] = useState<SaasPlanId>("PLAN_BASICO");
+  const [planId, setPlanId] = useState<SaasPlanId>("PAQUETE_100");
   const [firstEventTitle, setFirstEventTitle] = useState("");
   const [priceText, setPriceText] = useState("$2.00");
   const [initialPoolSize, setInitialPoolSize] = useState<number>(100);
@@ -414,8 +414,8 @@ export default function SaasSuperAdminPage() {
               Gran Bingo SaaS Ecuador — Centro de Negocio
             </h1>
             <p className="text-slate-400 text-sm font-semibold">
-              Administra tus clientes organizadores, planes ($15 / $35 / $49),
-              límites de tablas y eventos activos.
+              Administra tus clientes organizadores, paquetes por evento ($15 / $25 / $40 / $49),
+              límites de hojas y bingos activos.
             </p>
           </div>
 
@@ -522,7 +522,7 @@ export default function SaasSuperAdminPage() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
             {(Object.values(SAAS_PLANS) as SaasPlanDefinition[]).map((p) => (
               <div
                 key={p.id}
@@ -639,16 +639,19 @@ export default function SaasSuperAdminPage() {
                 className="w-full bg-slate-900 border-2 border-amber-400 rounded-xl px-3.5 py-2.5 text-sm font-black text-amber-300 cursor-pointer"
               >
                 <option value="DEMO_GRATIS">
-                  Demo Gratis ($0 — Máx. 10 tablas)
+                  Demo Gratis ($0 — 1 Bingo de Prueba, máx. 15 hojas)
                 </option>
-                <option value="PLAN_BASICO">
-                  Plan Básico ($15 — Máx. 200 tablas + Vendedores)
+                <option value="PAQUETE_100">
+                  Paquete 100 Hojas ($15 — 1 Bingo, 100 hojas numeradas)
                 </option>
-                <option value="PLAN_PRO">
-                  Plan Pro ($35 — Máx. 1,000 tablas + Vendedores)
+                <option value="PAQUETE_300">
+                  Paquete 200 a 300 Hojas ($25 — 1 Bingo, 300 hojas)
+                </option>
+                <option value="PAQUETE_1000">
+                  Paquete 500 a 1,000 Hojas ($40 — 1 Bingo, 1,000 hojas)
                 </option>
                 <option value="SUSCRIPCION_MENSUAL">
-                  Plan Mensual TikTok/FB ($49/mes — Eventos Ilimitados)
+                  Binguero Frecuente ($49/mes — Bingos Ilimitados)
                 </option>
               </select>
             </div>
@@ -792,14 +795,11 @@ export default function SaasSuperAdminPage() {
                       }
                       className="bg-slate-950 border-2 border-amber-400 rounded-xl px-3 py-2 text-xs sm:text-sm font-black text-amber-300 cursor-pointer"
                     >
-                      <option value="DEMO_GRATIS">Cambiar a Demo Gratis</option>
-                      <option value="PLAN_BASICO">
-                        Subir a Plan Básico ($15)
-                      </option>
-                      <option value="PLAN_PRO">Subir a Plan Pro ($35)</option>
-                      <option value="SUSCRIPCION_MENSUAL">
-                        Subir a Mensual ($49)
-                      </option>
+                      <option value="DEMO_GRATIS">Demo Gratis ($0 — 15 Hojas)</option>
+                      <option value="PAQUETE_100">Paquete 100 Hojas ($15)</option>
+                      <option value="PAQUETE_300">Paquete 200 a 300 Hojas ($25)</option>
+                      <option value="PAQUETE_1000">Paquete 500 a 1,000 Hojas ($40)</option>
+                      <option value="SUSCRIPCION_MENSUAL">Binguero Frecuente ($49/mes)</option>
                     </select>
 
                     <button

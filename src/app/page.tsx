@@ -27,7 +27,7 @@ export default function HomePage() {
   const [regEmail, setRegEmail] = useState<string>("");
   const [regPhone, setRegPhone] = useState<string>("");
   const [regPassword, setRegPassword] = useState<string>("");
-  const [regPlanId, setRegPlanId] = useState<SaasPlanId>("PLAN_BASICO");
+  const [regPlanId, setRegPlanId] = useState<SaasPlanId>("PAQUETE_100");
   const [regEventTitle, setRegEventTitle] = useState<string>("");
   const [regPriceText, setRegPriceText] = useState<string>("$2.00");
 

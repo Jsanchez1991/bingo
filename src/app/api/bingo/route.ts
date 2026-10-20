@@ -113,7 +113,7 @@ export async function GET(req: NextRequest) {
       );
     }
     const { state, seller, organizer } = foundSeller;
-    const plan = SAAS_PLANS[organizer?.planId || "PLAN_PRO"];
+    const plan = SAAS_PLANS[organizer?.planId || "PAQUETE_100"] || SAAS_PLANS.PAQUETE_100;
     return NextResponse.json({
       state,
       seller,
@@ -1508,7 +1508,7 @@ async function handlePostAction(req: NextRequest): Promise<NextResponse> {
       const organizer =
         db.organizers.find((o) => o.id === targetState.organizerId) ||
         db.organizers[0];
-      const plan = SAAS_PLANS[organizer?.planId || "PLAN_PRO"];
+      const plan = SAAS_PLANS[organizer?.planId || "PAQUETE_100"] || SAAS_PLANS.PAQUETE_100;
 
       if (organizer?.status === "SUSPENDIDO") {
         return NextResponse.json(
