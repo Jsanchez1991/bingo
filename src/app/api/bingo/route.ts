@@ -1283,14 +1283,38 @@ async function handlePostAction(req: NextRequest): Promise<NextResponse> {
       });
     }
 
-    // 7. Cambiar estado de un reclamo (VALIDO / RECHAZADO)
-    if (action === "UPDATE_CLAIM_STATUS") {
+    // 7. Cambiar estado de un reclamo (VALIDO / RECHAZADO) o ELIMINARLO
+    if (action === "UPDATE_CLAIM_STATUS" || action === "DELETE_CLAIM") {
       const { claimId, status } = body;
+      if (action === "DELETE_CLAIM") {
+        state.claims = state.claims.filter((c) => c.id !== claimId);
+        if (state.claims.length === 0) {
+          state.isPausedForVerification = false;
+        }
+        writeGameState(state, state.eventId);
+        return NextResponse.json({ ok: true, state });
+      }
+
       const claim = state.claims.find((c) => c.id === claimId);
       if (claim) {
         claim.status = status;
         writeGameState(state, state.eventId);
       }
+      return NextResponse.json({ ok: true, state });
+    }
+
+    // 7-B. Limpiar TODOS los reclamos de prueba de la etapa actual
+    if (action === "CLEAR_STAGE_CLAIMS") {
+      state.claims = state.claims.filter(
+        (c) =>
+          !(
+            c.tableIndex === state.activeTable &&
+            c.stage === state.activeStage
+          )
+      );
+      state.isPausedForVerification = false;
+      state.tieBreak = null;
+      writeGameState(state, state.eventId);
       return NextResponse.json({ ok: true, state });
     }
 

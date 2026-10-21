@@ -165,9 +165,9 @@ export default function AdminOrganizerPage() {
     }
   }, [plan?.maxCardsPerEvent]);
 
-  // Control de voz en cabina y detección de nuevos reclamos de BINGO
+  // Control de voz en cabina y registro de reclamos ya anunciados (para no repetir)
   const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
-  const prevClaimsCountRef = useRef<number>(0);
+  const announcedClaimIdsRef = useRef<Set<string>>(new Set());
   const isFirstFetchRef = useRef<boolean>(true);
 
   // Estado del formulario de Personalización del Cartón y Premios de las 6 Tablas
@@ -222,21 +222,26 @@ export default function AdminOrganizerPage() {
       }
 
       if (!isFirstFetchRef.current) {
-        if (newState.claims.length > prevClaimsCountRef.current) {
-          const newestClaim = newState.claims[0];
-          if (newestClaim) {
+        // Solo anunciar por voz los reclamos verdaderamente nuevos (que nunca se hayan cantado en esta sesión)
+        for (const cl of newState.claims) {
+          if (!announcedClaimIdsRef.current.has(cl.id)) {
+            announcedClaimIdsRef.current.add(cl.id);
             announceCustomVoice(
               `¡Atención! ¡Bingo cantado en el Cartón número ${Number(
-                newestClaim.cardNumber
-              )} de ${newestClaim.buyerName}!`,
+                cl.cardNumber
+              )} de ${cl.buyerName}!`,
               soundEnabled
             );
+            break; // Canta el más reciente
           }
         }
       } else {
+        // En la primera carga, registrar los reclamos existentes para no cantarlos al entrar
+        for (const cl of newState.claims) {
+          announcedClaimIdsRef.current.add(cl.id);
+        }
         isFirstFetchRef.current = false;
       }
-      prevClaimsCountRef.current = newState.claims.length;
 
       setGameState(newState);
       setEventsList(allEvents);
@@ -1354,13 +1359,34 @@ export default function AdminOrganizerPage() {
                   </p>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => postAction({ action: "SIMULATE_TIE_DEMO" })}
-                  className="px-3 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-black text-xs sm:text-sm shadow cursor-pointer"
-                >
-                  🧪 Simular 3 Ganadores Empatados
-                </button>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => postAction({ action: "SIMULATE_TIE_DEMO" })}
+                    className="px-3 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-black text-xs sm:text-sm shadow cursor-pointer"
+                  >
+                    🧪 Simular Empate
+                  </button>
+                  {currentStageClaims.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (
+                          window.confirm(
+                            "¿Deseas limpiar todos los reclamos de esta etapa (para borrar pruebas)?"
+                          )
+                        ) {
+                          postAction({ action: "CLEAR_STAGE_CLAIMS" });
+                          setSelectedClaimId(null);
+                        }
+                      }}
+                      className="px-2.5 py-2 rounded-xl bg-red-600/20 hover:bg-red-600 border border-red-500 text-red-300 hover:text-white font-black text-xs cursor-pointer transition-colors"
+                      title="Borrar todos los reclamos de prueba recibidos en esta etapa"
+                    >
+                      🗑️ Limpiar Reclamos
+                    </button>
+                  )}
+                </div>
               </div>
 
               <div className="grid grid-cols-3 gap-2.5 mb-4">
@@ -1539,29 +1565,55 @@ export default function AdminOrganizerPage() {
                           </div>
                         </div>
 
-                        {cl.status === "VALIDO" &&
-                          validCurrentClaims.length === 1 && (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
+                        <div className="flex items-center gap-2">
+                          {cl.status === "VALIDO" &&
+                            validCurrentClaims.length === 1 && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  postAction({
+                                    action: "CONFIRM_DIRECT_WINNER",
+                                    claimId: cl.id,
+                                  });
+                                  setSelectedClaimId(null);
+                                  announceCustomVoice(
+                                    `¡Felicidades! Ganador confirmado: ${cl.buyerName} con el Cartón número ${Number(
+                                      cl.cardNumber
+                                    )}`,
+                                    soundEnabled
+                                  );
+                                }}
+                                className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs px-3 py-2 rounded-xl shadow cursor-pointer"
+                              >
+                                🏆 Declarar Ganador Único
+                              </button>
+                            )}
+
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (
+                                window.confirm(
+                                  `¿Eliminar el reclamo de ${cl.buyerName} (Cartón #${cl.cardNumber})?`
+                                )
+                              ) {
                                 postAction({
-                                  action: "CONFIRM_DIRECT_WINNER",
+                                  action: "DELETE_CLAIM",
                                   claimId: cl.id,
                                 });
-                                setSelectedClaimId(null);
-                                announceCustomVoice(
-                                  `¡Felicidades! Ganador confirmado: ${cl.buyerName} con el Cartón número ${Number(
-                                    cl.cardNumber
-                                  )}`,
-                                  soundEnabled
-                                );
-                              }}
-                              className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs px-3 py-2 rounded-xl shadow cursor-pointer"
-                            >
-                              🏆 Declarar Ganador Único
-                            </button>
-                          )}
+                                if (selectedClaimId === cl.id) {
+                                  setSelectedClaimId(null);
+                                }
+                              }
+                            }}
+                            className="p-1.5 rounded-lg bg-slate-900 hover:bg-red-600/30 border border-slate-700 hover:border-red-500 text-slate-400 hover:text-red-300 text-xs cursor-pointer transition-colors"
+                            title="Eliminar este reclamo de prueba"
+                          >
+                            🗑️
+                          </button>
+                        </div>
                       </div>
                     );
                   })
