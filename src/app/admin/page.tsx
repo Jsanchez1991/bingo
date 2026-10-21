@@ -1367,23 +1367,23 @@ export default function AdminOrganizerPage() {
                   >
                     🧪 Simular Empate
                   </button>
-                  {currentStageClaims.length > 0 && (
+                  {gameState.claims.length > 0 && (
                     <button
                       type="button"
                       onClick={() => {
                         if (
                           window.confirm(
-                            "¿Deseas limpiar todos los reclamos de esta etapa (para borrar pruebas)?"
+                            `¿Deseas limpiar todos los ${gameState.claims.length} reclamo(s) de prueba de este evento?`
                           )
                         ) {
-                          postAction({ action: "CLEAR_STAGE_CLAIMS" });
+                          postAction({ action: "CLEAR_ALL_CLAIMS" });
                           setSelectedClaimId(null);
                         }
                       }}
                       className="px-2.5 py-2 rounded-xl bg-red-600/20 hover:bg-red-600 border border-red-500 text-red-300 hover:text-white font-black text-xs cursor-pointer transition-colors"
-                      title="Borrar todos los reclamos de prueba recibidos en esta etapa"
+                      title="Borrar todos los reclamos de prueba recibidos en todo el evento"
                     >
-                      🗑️ Limpiar Reclamos
+                      🗑️ Limpiar Reclamos ({gameState.claims.length})
                     </button>
                   )}
                 </div>

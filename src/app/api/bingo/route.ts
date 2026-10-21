@@ -1303,15 +1303,19 @@ async function handlePostAction(req: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ ok: true, state });
     }
 
-    // 7-B. Limpiar TODOS los reclamos de prueba de la etapa actual
-    if (action === "CLEAR_STAGE_CLAIMS") {
-      state.claims = state.claims.filter(
-        (c) =>
-          !(
-            c.tableIndex === state.activeTable &&
-            c.stage === state.activeStage
-          )
-      );
+    // 7-B. Limpiar TODOS los reclamos de prueba de la etapa actual o de TODO el evento
+    if (action === "CLEAR_STAGE_CLAIMS" || action === "CLEAR_ALL_CLAIMS") {
+      if (action === "CLEAR_ALL_CLAIMS") {
+        state.claims = [];
+      } else {
+        state.claims = state.claims.filter(
+          (c) =>
+            !(
+              c.tableIndex === state.activeTable &&
+              c.stage === state.activeStage
+            )
+        );
+      }
       state.isPausedForVerification = false;
       state.tieBreak = null;
       writeGameState(state, state.eventId);
