@@ -1679,6 +1679,20 @@ async function handlePostAction(req: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ ok: true, state });
     }
 
+    // 15. Borrar 1 ganador confirmado o limpiar todo el acta de ganadores
+    if (action === "DELETE_WINNER" || action === "CLEAR_WINNERS") {
+      const winnerId = String(body.winnerId || "");
+      if (action === "CLEAR_WINNERS" || !winnerId) {
+        state.winnersHistory = [];
+      } else {
+        state.winnersHistory = state.winnersHistory.filter(
+          (w) => w.id !== winnerId
+        );
+      }
+      writeGameState(state, state.eventId);
+      return NextResponse.json({ ok: true, state });
+    }
+
     return NextResponse.json(
       { ok: false, message: "Acción no reconocida" },
       { status: 400 }

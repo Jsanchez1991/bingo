@@ -418,10 +418,11 @@ export default function AdminOrganizerPage() {
     (c) => c.status === "PENDIENTE"
   );
 
-  const selectedClaim: BingoClaim | undefined =
-    gameState.claims.find((c) => c.id === selectedClaimId) ||
-    currentStageClaims[0] ||
-    gameState.claims[0];
+  // Solo mostrar la inspección de la tabla si el reclamo está PENDIENTE de revisión
+  // o si el organizador lo seleccionó expresamente para inspeccionarlo
+  const selectedClaim: BingoClaim | undefined = selectedClaimId
+    ? gameState.claims.find((c) => c.id === selectedClaimId)
+    : pendingCurrentClaims[0];
 
   const handleToggleBallWithVoice = async (ballNum: number) => {
     if (togglingBall !== null) return; // Evita doble clic o conflicto de red
@@ -1548,6 +1549,7 @@ export default function AdminOrganizerPage() {
                                   action: "CONFIRM_DIRECT_WINNER",
                                   claimId: cl.id,
                                 });
+                                setSelectedClaimId(null);
                                 announceCustomVoice(
                                   `¡Felicidades! Ganador confirmado: ${cl.buyerName} con el Cartón número ${Number(
                                     cl.cardNumber
@@ -1580,34 +1582,44 @@ export default function AdminOrganizerPage() {
                       {selectedClaim.tableIndex})
                     </h3>
                   </div>
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        postAction({
-                          action: "UPDATE_CLAIM_STATUS",
-                          claimId: selectedClaim.id,
-                          status: "VALIDO",
-                        })
-                      }
-                      className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs cursor-pointer"
-                    >
-                      ✅ Aprobar
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        postAction({
-                          action: "UPDATE_CLAIM_STATUS",
-                          claimId: selectedClaim.id,
-                          status: "RECHAZADO",
-                        })
-                      }
-                      className="px-2.5 py-1 rounded-lg bg-red-600 hover:bg-red-500 text-white font-bold text-xs cursor-pointer"
-                    >
-                      ❌ Rechazar
-                    </button>
-                  </div>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          postAction({
+                            action: "UPDATE_CLAIM_STATUS",
+                            claimId: selectedClaim.id,
+                            status: "VALIDO",
+                          });
+                          setSelectedClaimId(null);
+                        }}
+                        className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs cursor-pointer"
+                      >
+                        ✅ Aprobar y Ocultar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          postAction({
+                            action: "UPDATE_CLAIM_STATUS",
+                            claimId: selectedClaim.id,
+                            status: "RECHAZADO",
+                          });
+                          setSelectedClaimId(null);
+                        }}
+                        className="px-2.5 py-1 rounded-lg bg-red-600 hover:bg-red-500 text-white font-bold text-xs cursor-pointer"
+                      >
+                        ❌ Rechazar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedClaimId(null)}
+                        className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs cursor-pointer border border-slate-700"
+                        title="Ocultar vista de esta tabla"
+                      >
+                        ✕ Ocultar
+                      </button>
+                    </div>
                 </div>
 
                 <div
@@ -2605,14 +2617,37 @@ export default function AdminOrganizerPage() {
 
         {gameState.winnersHistory.length > 0 && (
           <section className="bg-slate-900 border-2 border-slate-700 rounded-3xl p-5 sm:p-6 shadow-xl">
-            <h2 className="text-xl font-black text-emerald-400 mb-3">
-              🏆 Acta Oficial de Ganadores Confirmados
-            </h2>
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+              <div>
+                <h2 className="text-xl font-black text-emerald-400">
+                  🏆 Acta Oficial de Ganadores Confirmados ({gameState.winnersHistory.length})
+                </h2>
+                <p className="text-slate-400 text-xs sm:text-sm">
+                  Historial de premios entregados en este evento. Puedes borrar registros de prueba si lo necesitas.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  if (
+                    window.confirm(
+                      "¿Deseas vaciar toda el acta de ganadores confirmados (borrar pruebas)?"
+                    )
+                  ) {
+                    postAction({ action: "CLEAR_WINNERS" });
+                  }
+                }}
+                className="px-3 py-1.5 rounded-xl bg-red-600/20 hover:bg-red-600 border border-red-500 text-red-300 hover:text-white font-black text-xs cursor-pointer transition-colors"
+              >
+                🗑️ Borrar Todos los Ganadores de Prueba
+              </button>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {gameState.winnersHistory.map((w) => (
                 <div
                   key={w.id}
-                  className="bg-slate-950 border border-emerald-700/60 rounded-2xl p-3.5 flex items-center justify-between"
+                  className="bg-slate-950 border border-emerald-700/60 rounded-2xl p-3.5 flex items-center justify-between gap-3"
                 >
                   <div>
                     <div className="text-xs font-extrabold text-emerald-400 uppercase">
@@ -2626,11 +2661,32 @@ export default function AdminOrganizerPage() {
                       {w.patternName}
                     </div>
                   </div>
-                  {w.wonViaTieBreak && (
-                    <div className="bg-amber-400 text-slate-950 font-black px-3 py-1.5 rounded-xl text-sm">
-                      Bolilla Mayor #{w.highBallNumber}
-                    </div>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {w.wonViaTieBreak && (
+                      <div className="bg-amber-400 text-slate-950 font-black px-2.5 py-1 rounded-xl text-xs sm:text-sm whitespace-nowrap">
+                        Bolilla Mayor #{w.highBallNumber}
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (
+                          window.confirm(
+                            `¿Eliminar del acta al ganador "${w.buyerName}" (Cartón #${w.cardNumber})?`
+                          )
+                        ) {
+                          postAction({
+                            action: "DELETE_WINNER",
+                            winnerId: w.id,
+                          });
+                        }
+                      }}
+                      className="p-2 rounded-xl bg-slate-900 hover:bg-red-600/30 border border-slate-700 hover:border-red-500 text-slate-400 hover:text-red-300 cursor-pointer transition-colors"
+                      title="Eliminar este ganador"
+                    >
+                      🗑️
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
