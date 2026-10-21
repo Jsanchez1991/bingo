@@ -35,18 +35,56 @@ function getClientIp(req: NextRequest): string {
   return "127.0.0.1";
 }
 
-function buildSaasSummary(requestedEventId?: string | null) {
+function buildSaasSummary(requestedEventId?: string | null, organizerId?: string | null) {
   const db = readSaasDb();
-  const activeEventId =
-    requestedEventId && db.events[requestedEventId]
-      ? requestedEventId
-      : db.activeDefaultEventId;
-  const state = db.events[activeEventId] || Object.values(db.events)[0];
-  const organizer =
-    db.organizers.find((o) => o.id === state?.organizerId) || db.organizers[0];
-  const plan = SAAS_PLANS[organizer?.planId || "PLAN_PRO"];
+  let activeEventId = requestedEventId && db.events[requestedEventId] ? requestedEventId : null;
 
-  const eventsList = Object.values(db.events).map((ev) => {
+  // Si se pasa un organizerId, asegurar que el evento pertenece a ese organizador
+  if (organizerId && (!activeEventId || db.events[activeEventId]?.organizerId !== organizerId)) {
+    const orgEvent = Object.values(db.events).find((e) => e.organizerId === organizerId);
+    if (orgEvent) {
+      activeEventId = orgEvent.eventId;
+    }
+  }
+
+  if (!activeEventId) {
+    activeEventId = db.activeDefaultEventId && db.events[db.activeDefaultEventId]
+      ? db.activeDefaultEventId
+      : Object.keys(db.events)[0];
+  }
+
+  let state = db.events[activeEventId] || Object.values(db.events)[0];
+
+  // Si se especificó organizerId pero el evento resuelto no le pertenece (por ejemplo recién registrado sin eventos), crearle uno propio
+  if (organizerId && state && state.organizerId !== organizerId) {
+    const org = db.organizers.find((o) => o.id === organizerId);
+    if (org) {
+      const newEventId = `evt-${crypto.randomBytes(2).toString("hex")}`;
+      const created = createNewEventState({
+        eventId: newEventId,
+        organizerId: org.id,
+        title: `GRAN BINGO ${org.organizationName}`,
+        organizedBy: org.organizationName,
+        priceText: "$2.00",
+        phones: org.phone,
+      });
+      db.events[newEventId] = created;
+      writeSaasDb(db);
+      state = created;
+      activeEventId = newEventId;
+    }
+  }
+
+  const organizer =
+    db.organizers.find((o) => o.id === (organizerId || state?.organizerId)) || db.organizers[0];
+  const plan = SAAS_PLANS[organizer?.planId || "PAQUETE_100"] || SAAS_PLANS.PAQUETE_100;
+
+  // Si se solicita filtrar por organizador, solo listar sus eventos; si es superadmin (sin filtro) lista todos
+  const eventsToMap = organizerId
+    ? Object.values(db.events).filter((ev) => ev.organizerId === organizerId)
+    : Object.values(db.events);
+
+  const eventsList = eventsToMap.map((ev) => {
     const org = db.organizers.find((o) => o.id === ev.organizerId);
     const soldCount = ev.cards.filter((c) => isCardSold(c)).length;
     const availableCount = ev.cards.length - soldCount;
@@ -54,7 +92,7 @@ function buildSaasSummary(requestedEventId?: string | null) {
       eventId: ev.eventId,
       organizerId: ev.organizerId,
       organizerName: org?.organizationName || ev.event.organizedBy,
-      planId: org?.planId || "PLAN_PRO",
+      planId: org?.planId || "PAQUETE_100",
       title: ev.event.title,
       dateTimeText: ev.event.dateTimeText,
       priceText: ev.event.priceText,
@@ -85,6 +123,7 @@ export async function GET(req: NextRequest) {
   const sellerCode = searchParams.get("sellerCode");
   const selectionCode = searchParams.get("selectionCode");
   const eventIdParam = searchParams.get("eventId");
+  const organizerIdParam = searchParams.get("organizerId");
 
   // 0. Si consulta un Cliente desde el enlace temporal de elección de tablas (/elegir/[code])
   if (selectionCode) {
@@ -178,7 +217,7 @@ export async function GET(req: NextRequest) {
 
   // 3. Consulta general (Cabina Organizador / Super-Admin / Landing)
   const { db, state, organizer, plan, eventsList } =
-    buildSaasSummary(eventIdParam);
+    buildSaasSummary(eventIdParam, organizerIdParam);
 
   return NextResponse.json({
     state,
@@ -372,11 +411,12 @@ async function handlePostAction(req: NextRequest): Promise<NextResponse> {
     if (action === "SWITCH_ACTIVE_EVENT") {
       const db = readSaasDb();
       const targetId = String(body.targetEventId || "");
-      if (db.events[targetId]) {
+      const isSuperAdmin = body.isSuperAdmin === true;
+      if (db.events[targetId] && isSuperAdmin) {
         db.activeDefaultEventId = targetId;
         writeSaasDb(db);
       }
-      const summary = buildSaasSummary(targetId);
+      const summary = buildSaasSummary(targetId, body.organizerId);
       return NextResponse.json({
         ok: true,
         state: summary.state,
@@ -431,10 +471,12 @@ async function handlePostAction(req: NextRequest): Promise<NextResponse> {
       });
 
       db.events[newEventId] = newEvent;
-      db.activeDefaultEventId = newEventId;
+      if (!db.activeDefaultEventId || !db.events[db.activeDefaultEventId]) {
+        db.activeDefaultEventId = newEventId;
+      }
       writeSaasDb(db);
 
-      const summary = buildSaasSummary(newEventId);
+      const summary = buildSaasSummary(newEventId, organizer.id);
       return NextResponse.json({
         ok: true,
         newEventId,
@@ -495,10 +537,12 @@ async function handlePostAction(req: NextRequest): Promise<NextResponse> {
       });
 
       db.events[firstEventId] = firstEvent;
-      db.activeDefaultEventId = firstEventId;
+      if (!db.activeDefaultEventId || !db.events[db.activeDefaultEventId]) {
+        db.activeDefaultEventId = firstEventId;
+      }
       writeSaasDb(db);
 
-      const summary = buildSaasSummary(firstEventId);
+      const summary = buildSaasSummary(firstEventId, newOrg.id);
       return NextResponse.json({
         ok: true,
         newOrganizer: newOrg,
@@ -1093,7 +1137,23 @@ async function handlePostAction(req: NextRequest): Promise<NextResponse> {
     // =========================================================================
     // ACCIONES DE JUEGO EN VIVO Y CARTONES (SOBRE EL EVENTO CORRESPONDIENTE)
     // =========================================================================
-    const state = readGameState(requestedEventId);
+    let targetEventId = requestedEventId;
+    if (body.organizerId) {
+      const currentDb = readSaasDb();
+      if (
+        !targetEventId ||
+        !currentDb.events[targetEventId] ||
+        currentDb.events[targetEventId]?.organizerId !== body.organizerId
+      ) {
+        const orgEvent = Object.values(currentDb.events).find(
+          (e) => e.organizerId === body.organizerId
+        );
+        if (orgEvent) {
+          targetEventId = orgEvent.eventId;
+        }
+      }
+    }
+    const state = readGameState(targetEventId);
 
     // 1. Marcar o desmarcar bolilla cantada en el bolillero del organizador (1 al 75)
     if (action === "TOGGLE_BALL") {

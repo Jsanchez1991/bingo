@@ -169,6 +169,7 @@ export default function AdminOrganizerPage() {
   const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
   const announcedClaimIdsRef = useRef<Set<string>>(new Set());
   const isFirstFetchRef = useRef<boolean>(true);
+  const activeEventIdRef = useRef<string | null>(null);
 
   // Estado del formulario de Personalización del Cartón y Premios de las 6 Tablas
   const [showCustomizeForm, setShowCustomizeForm] = useState<boolean>(false);
@@ -185,41 +186,27 @@ export default function AdminOrganizerPage() {
   const fetchState = useCallback(async () => {
     try {
       const currentSession = getSaasSession();
-      const res = await fetch("/api/bingo", { cache: "no-store" });
+      const params = new URLSearchParams();
+      if (currentSession?.role === "ORGANIZER" && currentSession.organizerId) {
+        params.set("organizerId", currentSession.organizerId);
+      }
+      const targetEvId = activeEventIdRef.current;
+      if (targetEvId) {
+        params.set("eventId", targetEvId);
+      }
+      const fetchUrl = params.toString() ? `/api/bingo?${params.toString()}` : "/api/bingo";
+      const res = await fetch(fetchUrl, { cache: "no-store" });
       if (!res.ok) return;
       const data = await res.json();
       let newState: BingoGameState = data.state;
       const allEvents: EventSummaryOption[] = data.eventsList || [];
 
-      // Si hay un organizador logueado y el evento activo no es suyo, cambiar automáticamente a su evento
-      if (
-        currentSession?.role === "ORGANIZER" &&
-        currentSession.organizerId &&
-        newState.organizerId !== currentSession.organizerId
-      ) {
-        const myEvent = allEvents.find(
-          (ev) => ev.organizerId === currentSession.organizerId
-        );
-        if (myEvent) {
-          const switchRes = await fetch("/api/bingo", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              action: "SWITCH_ACTIVE_EVENT",
-              targetEventId: myEvent.eventId,
-            }),
-          });
-          const switchData = await switchRes.json();
-          if (switchData.state) {
-            newState = switchData.state;
-            if (switchData.organizer) setOrganizer(switchData.organizer);
-            if (switchData.plan) setPlan(switchData.plan);
-          }
-        }
-      } else {
-        if (data.organizer) setOrganizer(data.organizer);
-        if (data.plan) setPlan(data.plan);
+      if (!activeEventIdRef.current && newState?.eventId) {
+        activeEventIdRef.current = newState.eventId;
       }
+
+      if (data.organizer) setOrganizer(data.organizer);
+      if (data.plan) setPlan(data.plan);
 
       if (!isFirstFetchRef.current) {
         // Solo anunciar por voz los reclamos verdaderamente nuevos (que nunca se hayan cantado en esta sesión)
@@ -263,12 +250,15 @@ export default function AdminOrganizerPage() {
   }, [fetchState]);
 
   const postAction = async (payload: Record<string, unknown>) => {
+    const currentSession = getSaasSession();
+    const targetEvId = (payload.eventId as string) || activeEventIdRef.current || gameState?.eventId;
     const res = await fetch("/api/bingo", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         ...payload,
-        eventId: payload.eventId || gameState?.eventId,
+        eventId: targetEvId,
+        organizerId: (payload.organizerId as string) || currentSession?.organizerId,
       }),
     });
     const data = await res.json();
@@ -278,12 +268,24 @@ export default function AdminOrganizerPage() {
       setLimitErrorMsg(null);
     }
     if (data.state) {
+      activeEventIdRef.current = data.state.eventId;
       setGameState(data.state);
       setPrizeInput(data.state.currentPrizeName);
     }
-    if (data.organizer) setOrganizer(data.organizer);
-    if (data.plan) setPlan(data.plan);
-    if (data.eventsList) setEventsList(data.eventsList);
+    if (data.organizer) {
+      setOrganizer(data.organizer);
+    }
+    if (data.plan) {
+      setPlan(data.plan);
+    }
+    if (data.eventsList) {
+      setEventsList(data.eventsList);
+    }
+    if (data.session) {
+      setSaasSession(data.session);
+      setSession(data.session);
+    }
+    fetchState();
     return data;
   };
 
@@ -629,6 +631,7 @@ export default function AdminOrganizerPage() {
                 value={gameState.eventId}
                 onChange={async (e) => {
                   const nextId = e.target.value;
+                  activeEventIdRef.current = nextId;
                   const data = await postAction({
                     action: "SWITCH_ACTIVE_EVENT",
                     targetEventId: nextId,
