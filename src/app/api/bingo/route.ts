@@ -1407,24 +1407,95 @@ async function handlePostAction(req: NextRequest): Promise<NextResponse> {
 
     // 8. Confirmar 1 ganador directo (cuando no hay empate)
     if (action === "CONFIRM_DIRECT_WINNER") {
-      const { claimId } = body;
+      const { claimId, awardPatternType, customPrizeName } = body;
       const claim = state.claims.find((c) => c.id === claimId);
       if (claim) {
         claim.status = "VALIDO";
+
+        // Determinar qué figura específica ganó (ej. "LINEA" o "PUNTA")
+        const specificFigure: StageType =
+          awardPatternType ||
+          claim.validation?.patternType ||
+          (claim.stage as StageType);
+
+        const specificPatternName =
+          specificFigure === "LINEA" && claim.stage.includes("LINEA")
+            ? "Línea Completa"
+            : specificFigure === "PUNTA" && claim.stage.includes("PUNTA")
+            ? "Punta (Esquina)"
+            : specificFigure === "ESQUINAS" && claim.stage.includes("ESQUINAS")
+            ? "4 Esquinas"
+            : claim.validation.patternName;
+
+        const effectivePrize =
+          customPrizeName || state.currentPrizeName;
+
         const record: WinnerRecord = {
           id: `WIN-${Date.now()}`,
           tableIndex: claim.tableIndex,
           stage: claim.stage,
-          patternType: claim.validation?.patternType || (claim.stage as StageType),
-          prizeName: state.currentPrizeName,
+          patternType: specificFigure,
+          prizeName: effectivePrize,
           cardNumber: claim.cardNumber,
           buyerName: claim.buyerName,
-          patternName: claim.validation.patternName,
+          patternName: specificPatternName,
           wonViaTieBreak: false,
           highBallNumber: null,
           confirmedAt: new Date().toISOString(),
         };
         state.winnersHistory.unshift(record);
+
+        // Si fue en una etapa combinada (ej. LINEA_Y_PUNTA), verificar qué figura queda pendiente
+        if (state.activeStage === "LINEA_Y_PUNTA") {
+          const currentTableWinners = state.winnersHistory.filter(
+            (w) => w.tableIndex === state.activeTable
+          );
+          const hasWonLinea = currentTableWinners.some(
+            (w) => w.patternType === "LINEA" || w.patternName.toLowerCase().includes("línea")
+          );
+          const hasWonPunta = currentTableWinners.some(
+            (w) => w.patternType === "PUNTA" || w.patternName.toLowerCase().includes("punta")
+          );
+
+          if (hasWonLinea && !hasWonPunta) {
+            state.activeStage = "PUNTA";
+          } else if (hasWonPunta && !hasWonLinea) {
+            state.activeStage = "LINEA";
+          }
+        } else if (state.activeStage === "LINEA_Y_ESQUINAS") {
+          const currentTableWinners = state.winnersHistory.filter(
+            (w) => w.tableIndex === state.activeTable
+          );
+          const hasWonLinea = currentTableWinners.some(
+            (w) => w.patternType === "LINEA" || w.patternName.toLowerCase().includes("línea")
+          );
+          const hasWonEsquinas = currentTableWinners.some(
+            (w) => w.patternType === "ESQUINAS" || w.patternName.toLowerCase().includes("esquinas")
+          );
+
+          if (hasWonLinea && !hasWonEsquinas) {
+            state.activeStage = "ESQUINAS";
+          } else if (hasWonEsquinas && !hasWonLinea) {
+            state.activeStage = "LINEA";
+          }
+        } else if (state.activeStage === "PUNTA_Y_ESQUINAS") {
+          const currentTableWinners = state.winnersHistory.filter(
+            (w) => w.tableIndex === state.activeTable
+          );
+          const hasWonPunta = currentTableWinners.some(
+            (w) => w.patternType === "PUNTA" || w.patternName.toLowerCase().includes("punta")
+          );
+          const hasWonEsquinas = currentTableWinners.some(
+            (w) => w.patternType === "ESQUINAS" || w.patternName.toLowerCase().includes("esquinas")
+          );
+
+          if (hasWonPunta && !hasWonEsquinas) {
+            state.activeStage = "ESQUINAS";
+          } else if (hasWonEsquinas && !hasWonPunta) {
+            state.activeStage = "PUNTA";
+          }
+        }
+
         state.isPausedForVerification = false;
         writeGameState(state, state.eventId);
       }
@@ -1541,11 +1612,15 @@ async function handlePostAction(req: NextRequest): Promise<NextResponse> {
         targetState.tieBreak.completedAt = new Date().toISOString();
 
         const bestClaim = targetState.claims.find((c) => c.id === best.claimId);
+        const specificFigure: StageType =
+          bestClaim?.validation?.patternType ||
+          (targetState.tieBreak.stage as StageType);
+
         const record: WinnerRecord = {
           id: `WIN-${Date.now()}`,
           tableIndex: targetState.tieBreak.tableIndex,
           stage: targetState.tieBreak.stage,
-          patternType: bestClaim?.validation?.patternType || (targetState.tieBreak.stage as StageType),
+          patternType: specificFigure,
           prizeName: targetState.tieBreak.prizeName,
           cardNumber: best.cardNumber,
           buyerName: best.buyerName,
@@ -1555,6 +1630,57 @@ async function handlePostAction(req: NextRequest): Promise<NextResponse> {
           confirmedAt: new Date().toISOString(),
         };
         targetState.winnersHistory.unshift(record);
+
+        // Si fue en una etapa combinada, transicionar a la figura restante
+        if (targetState.activeStage === "LINEA_Y_PUNTA") {
+          const currentTableWinners = targetState.winnersHistory.filter(
+            (w) => w.tableIndex === targetState.activeTable
+          );
+          const hasWonLinea = currentTableWinners.some(
+            (w) => w.patternType === "LINEA" || w.patternName.toLowerCase().includes("línea")
+          );
+          const hasWonPunta = currentTableWinners.some(
+            (w) => w.patternType === "PUNTA" || w.patternName.toLowerCase().includes("punta")
+          );
+
+          if (hasWonLinea && !hasWonPunta) {
+            targetState.activeStage = "PUNTA";
+          } else if (hasWonPunta && !hasWonLinea) {
+            targetState.activeStage = "LINEA";
+          }
+        } else if (targetState.activeStage === "LINEA_Y_ESQUINAS") {
+          const currentTableWinners = targetState.winnersHistory.filter(
+            (w) => w.tableIndex === targetState.activeTable
+          );
+          const hasWonLinea = currentTableWinners.some(
+            (w) => w.patternType === "LINEA" || w.patternName.toLowerCase().includes("línea")
+          );
+          const hasWonEsquinas = currentTableWinners.some(
+            (w) => w.patternType === "ESQUINAS" || w.patternName.toLowerCase().includes("esquinas")
+          );
+
+          if (hasWonLinea && !hasWonEsquinas) {
+            targetState.activeStage = "ESQUINAS";
+          } else if (hasWonEsquinas && !hasWonLinea) {
+            targetState.activeStage = "LINEA";
+          }
+        } else if (targetState.activeStage === "PUNTA_Y_ESQUINAS") {
+          const currentTableWinners = targetState.winnersHistory.filter(
+            (w) => w.tableIndex === targetState.activeTable
+          );
+          const hasWonPunta = currentTableWinners.some(
+            (w) => w.patternType === "PUNTA" || w.patternName.toLowerCase().includes("punta")
+          );
+          const hasWonEsquinas = currentTableWinners.some(
+            (w) => w.patternType === "ESQUINAS" || w.patternName.toLowerCase().includes("esquinas")
+          );
+
+          if (hasWonPunta && !hasWonEsquinas) {
+            targetState.activeStage = "ESQUINAS";
+          } else if (hasWonEsquinas && !hasWonPunta) {
+            targetState.activeStage = "PUNTA";
+          }
+        }
       }
 
       writeGameState(targetState, targetState.eventId);

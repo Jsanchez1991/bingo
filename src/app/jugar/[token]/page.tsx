@@ -511,8 +511,22 @@ export default function PlayerBingoPage() {
                 TABLA #{gameState.activeTable} ({activeLetterInfo?.title})
               </div>
               <div>
-                <div className="text-xs sm:text-sm uppercase tracking-wider text-amber-300 font-extrabold">
-                  JUGANDO AHORA EN VIVO:
+                <div className="text-xs sm:text-sm uppercase tracking-wider text-amber-300 font-extrabold flex items-center gap-1.5">
+                  <span>JUGANDO AHORA EN VIVO:</span>
+                  {(() => {
+                    const currentTableWinners = (gameState.winnersHistory || []).filter(
+                      (w) => w.tableIndex === gameState.activeTable
+                    );
+                    const lastWon = currentTableWinners[0];
+                    if (lastWon) {
+                      return (
+                        <span className="bg-amber-400 text-slate-950 font-black px-2 py-0.2 rounded text-[11px] uppercase animate-pulse">
+                          🏆 {lastWon.patternName} ya ganada por {lastWon.buyerName} (Cartón #{lastWon.cardNumber})
+                        </span>
+                      );
+                    }
+                    return null;
+                  })()}
                 </div>
                 <div className="text-lg sm:text-2xl font-black text-white leading-tight">
                   {activeStageInfo.shortLabel} •{" "}

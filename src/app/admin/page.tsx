@@ -1797,21 +1797,159 @@ export default function AdminOrganizerPage() {
                       : "bg-red-950 border border-red-500 text-red-300"
                   }`}
                 >
-                  {selectedClaim.validation.isValidOfficial ? (
-                    <span>
-                      ✅ SISTEMA CONFIRMA: Cumple{" "}
-                      <strong>{selectedClaim.validation.patternName}</strong>{" "}
-                      con las bolillas oficiales cantadas.
-                    </span>
-                  ) : (
-                    <span>
-                      ⚠️ INCOMPLETO: Aún no han salido en el bolillero los
-                      números:{" "}
-                      {selectedClaim.validation.missingOfficialNumbers.join(
-                        ", "
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      {selectedClaim.validation.isValidOfficial ? (
+                        <span>
+                          ✅ SISTEMA CONFIRMA: Cumple{" "}
+                          <strong>{selectedClaim.validation.patternName}</strong>{" "}
+                          con las bolillas oficiales cantadas.
+                        </span>
+                      ) : (
+                        <span>
+                          ⚠️ INCOMPLETO: Aún no han salido en el bolillero los
+                          números:{" "}
+                          {selectedClaim.validation.missingOfficialNumbers.join(
+                            ", "
+                          )}
+                        </span>
                       )}
-                    </span>
-                  )}
+                    </div>
+
+                    {/* Botones de acción directa para confirmar la figura específica */}
+                    {selectedClaim.validation.isValidOfficial && (
+                      <div className="flex items-center gap-1.5 ml-auto">
+                        {gameState.activeStage === "LINEA_Y_PUNTA" ? (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                postAction({
+                                  action: "CONFIRM_DIRECT_WINNER",
+                                  claimId: selectedClaim.id,
+                                  awardPatternType: "LINEA",
+                                  customPrizeName: `${gameState.currentPrizeName} (Línea)`,
+                                });
+                                setSelectedClaimId(null);
+                                announceCustomVoice(
+                                  `¡Ganador de Línea confirmado: ${selectedClaim.buyerName} con el Cartón número ${Number(
+                                    selectedClaim.cardNumber
+                                  )}! ¡Seguimos jugando por la Punta!`,
+                                  soundEnabled
+                                );
+                              }}
+                              className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black text-xs shadow cursor-pointer"
+                            >
+                              📏 Declarar Ganador de LÍNEA
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                postAction({
+                                  action: "CONFIRM_DIRECT_WINNER",
+                                  claimId: selectedClaim.id,
+                                  awardPatternType: "PUNTA",
+                                  customPrizeName: `${gameState.currentPrizeName} (Punta)`,
+                                });
+                                setSelectedClaimId(null);
+                                announceCustomVoice(
+                                  `¡Ganador de Punta confirmado: ${selectedClaim.buyerName} con el Cartón número ${Number(
+                                    selectedClaim.cardNumber
+                                  )}! ¡Seguimos jugando por la Línea!`,
+                                  soundEnabled
+                                );
+                              }}
+                              className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs shadow cursor-pointer"
+                            >
+                              📐 Declarar Ganador de PUNTA
+                            </button>
+                          </>
+                        ) : gameState.activeStage === "LINEA_Y_ESQUINAS" ? (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                postAction({
+                                  action: "CONFIRM_DIRECT_WINNER",
+                                  claimId: selectedClaim.id,
+                                  awardPatternType: "LINEA",
+                                });
+                                setSelectedClaimId(null);
+                              }}
+                              className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black text-xs shadow cursor-pointer"
+                            >
+                              📏 Ganador de LÍNEA
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                postAction({
+                                  action: "CONFIRM_DIRECT_WINNER",
+                                  claimId: selectedClaim.id,
+                                  awardPatternType: "ESQUINAS",
+                                });
+                                setSelectedClaimId(null);
+                              }}
+                              className="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-black text-xs shadow cursor-pointer"
+                            >
+                              ⭐ Ganador de 4 ESQUINAS
+                            </button>
+                          </>
+                        ) : gameState.activeStage === "PUNTA_Y_ESQUINAS" ? (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                postAction({
+                                  action: "CONFIRM_DIRECT_WINNER",
+                                  claimId: selectedClaim.id,
+                                  awardPatternType: "PUNTA",
+                                });
+                                setSelectedClaimId(null);
+                              }}
+                              className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs shadow cursor-pointer"
+                            >
+                              📐 Ganador de PUNTA
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                postAction({
+                                  action: "CONFIRM_DIRECT_WINNER",
+                                  claimId: selectedClaim.id,
+                                  awardPatternType: "ESQUINAS",
+                                });
+                                setSelectedClaimId(null);
+                              }}
+                              className="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-black text-xs shadow cursor-pointer"
+                            >
+                              ⭐ Ganador de 4 ESQUINAS
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              postAction({
+                                action: "CONFIRM_DIRECT_WINNER",
+                                claimId: selectedClaim.id,
+                              });
+                              setSelectedClaimId(null);
+                              announceCustomVoice(
+                                `¡Felicidades! Ganador confirmado: ${selectedClaim.buyerName} con el Cartón número ${Number(
+                                  selectedClaim.cardNumber
+                                )}`,
+                                soundEnabled
+                              );
+                            }}
+                            className="px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs shadow cursor-pointer"
+                          >
+                            🏆 Declarar Ganador Único
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <div className="text-slate-950">
