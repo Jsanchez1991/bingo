@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import { NextRequest, NextResponse } from "next/server";
+import { supabase } from "@/lib/supabase-client";
 import {
   readSaasDb,
   writeSaasDb,
@@ -680,6 +681,10 @@ async function handlePostAction(req: NextRequest): Promise<NextResponse> {
       }
 
       writeSaasDb(db);
+
+      // Eliminar también de Supabase en cascada
+      await supabase.from("events").delete().eq("id", targetEventId);
+
       const summary = buildSaasSummary();
       return NextResponse.json({
         ok: true,

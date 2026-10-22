@@ -183,6 +183,15 @@ export default function AdminOrganizerPage() {
     const s = getSaasSession();
     setSession(s);
     setAuthChecked(true);
+
+    // Si viene con ?eventId=... en la URL (ej. al abrirlo desde el panel /saas), fijar de inmediato el evento solicitado
+    if (typeof window !== "undefined") {
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlEventId = urlParams.get("eventId");
+      if (urlEventId) {
+        activeEventIdRef.current = urlEventId;
+      }
+    }
   }, []);
 
   const fetchState = useCallback(async () => {
@@ -192,7 +201,15 @@ export default function AdminOrganizerPage() {
       if (currentSession?.role === "ORGANIZER" && currentSession.organizerId) {
         params.set("organizerId", currentSession.organizerId);
       }
-      const targetEvId = activeEventIdRef.current;
+      
+      // Comprobar también el parámetro de la URL si el ref aún no se ha asignado
+      let targetEvId = activeEventIdRef.current;
+      if (!targetEvId && typeof window !== "undefined") {
+        const uParams = new URLSearchParams(window.location.search);
+        targetEvId = uParams.get("eventId");
+        if (targetEvId) activeEventIdRef.current = targetEvId;
+      }
+
       if (targetEvId) {
         params.set("eventId", targetEvId);
       }

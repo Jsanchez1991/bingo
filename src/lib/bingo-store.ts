@@ -521,6 +521,27 @@ export async function syncToSupabase(db?: SaasDatabase, specificEventId?: string
         pregenerated_pool_size: targetEvent.pregeneratedPoolSize || targetEvent.cards.length,
         updated_at: new Date().toISOString(),
       });
+
+      // Sincronizar también cartones si se crearon o actualizaron
+      if (targetEvent.cards && targetEvent.cards.length > 0) {
+        const cardsChunk = targetEvent.cards.slice(0, 100).map((c) => ({
+          id: `${targetEvent.eventId}_${c.cardNumber}`,
+          event_id: targetEvent.eventId,
+          card_number: c.cardNumber,
+          secret_token: c.secretToken,
+          buyer_name: c.buyerName || "",
+          buyer_phone: c.buyerPhone || "",
+          status: c.status || "DISPONIBLE",
+          tables_data: c.tables,
+          marked_by_table: c.markedByTable,
+          session_lock: c.sessionLock,
+          assigned_seller_id: c.assignedSellerId,
+          sold_by_seller_id: c.soldBySellerId,
+          sold_by_seller_name: c.soldBySellerName,
+          created_at: c.createdAt || new Date().toISOString(),
+        }));
+        await supabase.from("cards").upsert(cardsChunk);
+      }
     }
 
     // 2. Mantener también la tabla de respaldo monolítica por seguridad sin bloquear
