@@ -509,6 +509,8 @@ export default function AdminOrganizerPage() {
     setTogglingBall(ballNum);
 
     const wasAlreadyDrawn = drawnSet.has(ballNum);
+    const targetMode: "ADD" | "REMOVE" = wasAlreadyDrawn ? "REMOVE" : "ADD";
+
     if (wasAlreadyDrawn) {
       pendingBallActionsRef.current.removed.add(ballNum);
       pendingBallActionsRef.current.added.delete(ballNum);
@@ -531,7 +533,11 @@ export default function AdminOrganizerPage() {
     }
 
     try {
-      await postAction({ action: "TOGGLE_BALL", ballNumber: ballNum });
+      await postAction({
+        action: "TOGGLE_BALL",
+        ballNumber: ballNum,
+        mode: targetMode,
+      });
     } finally {
       setTogglingBall(null);
     }

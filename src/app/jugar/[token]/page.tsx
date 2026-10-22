@@ -48,8 +48,10 @@ export default function PlayerBingoPage() {
   const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
   const prevLastBallRef = useRef<number | null>(null);
   const isFirstFetchRef = useRef<boolean>(true);
-  // Candado para que las marcas locales nunca se despinten con el polling de 1.5s
+  // Candado para que las marcas locales nunca se despinten con el polling
   const pendingMarksRef = useRef<Map<string, { marked: boolean; timestamp: number }>>(new Map());
+  // Timers de debounce por cartón y tabla para sincronizar marcas sin saturar la red
+  const syncDebounceTimersRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
 
   useEffect(() => {
     const storageKey = "gran_bingo_device_id";
@@ -138,14 +140,14 @@ export default function PlayerBingoPage() {
             const tableList = [...(updatedMarkedByTable[pTableIdx] || [])];
             const hasNum = tableList.includes(pNum);
             if (pending.marked && !hasNum) {
-              if (now - pending.timestamp < 4000) {
+              if (now - pending.timestamp < 10000) {
                 tableList.push(pNum);
                 updatedMarkedByTable[pTableIdx] = tableList;
               } else {
                 pendingMarksRef.current.delete(key);
               }
             } else if (!pending.marked && hasNum) {
-              if (now - pending.timestamp < 4000) {
+              if (now - pending.timestamp < 10000) {
                 updatedMarkedByTable[pTableIdx] = tableList.filter((n) => n !== pNum);
               } else {
                 pendingMarksRef.current.delete(key);
@@ -216,7 +218,7 @@ export default function PlayerBingoPage() {
     };
   }, [deviceId, fetchLiveState, soundEnabled]);
 
-  const handleToggleNumber = async (
+  const handleToggleNumber = (
     cardNumber: string,
     tableIndex: number,
     num: number
@@ -226,8 +228,11 @@ export default function PlayerBingoPage() {
     }
     const key = String(tableIndex);
     const markKey = `${cardNumber}_${tableIndex}_${num}`;
+    const debounceKey = `${cardNumber}_${tableIndex}`;
 
     let nextMarked = true;
+    let updatedMarksForTable: number[] = [];
+
     setPlayerCards((prevCards) =>
       prevCards.map((c) => {
         if (c.cardNumber !== cardNumber) return c;
@@ -237,6 +242,7 @@ export default function PlayerBingoPage() {
         const updatedList = exists
           ? currentList.filter((n) => n !== num)
           : [...currentList, num];
+        updatedMarksForTable = updatedList;
         return {
           ...c,
           markedByTable: {
@@ -247,28 +253,36 @@ export default function PlayerBingoPage() {
       })
     );
 
+    // Candado extendido a 8 segundos para evitar cualquier desmarcado por lentitud de red
     pendingMarksRef.current.set(markKey, {
       marked: nextMarked,
       timestamp: Date.now(),
     });
 
-    try {
-      const res = await fetch("/api/bingo", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "MARK_NUMBER",
-          token,
-          cardNumber,
-          tableIndex,
-          number: num,
-        }),
-      });
-      const data = await res.json();
-      if (data.ok && data.playerCards) {
-        pendingMarksRef.current.delete(markKey);
-      }
-    } catch {}
+    // Debounce de 350ms: Si toca 1, 2 o más casillas rápido, se envía un solo paquete con el estado definitivo
+    const existingTimer = syncDebounceTimersRef.current.get(debounceKey);
+    if (existingTimer) {
+      clearTimeout(existingTimer);
+    }
+
+    const timer = setTimeout(async () => {
+      syncDebounceTimersRef.current.delete(debounceKey);
+      try {
+        await fetch("/api/bingo", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "SYNC_SHEET_MARKS",
+            token,
+            cardNumber,
+            tableIndex,
+            markedNumbers: updatedMarksForTable,
+          }),
+        });
+      } catch {}
+    }, 350);
+
+    syncDebounceTimersRef.current.set(debounceKey, timer);
   };
 
   // Pintar automáticamente las bolillas salidas en TODAS las tablas abiertas de ese número de juego

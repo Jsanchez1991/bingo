@@ -1171,12 +1171,21 @@ async function handlePostAction(req: NextRequest): Promise<NextResponse> {
     // 1. Marcar o desmarcar bolilla cantada en el bolillero del organizador (1 al 75)
     if (action === "TOGGLE_BALL") {
       const ballNumber = Number(body.ballNumber);
+      const forceAction = body.mode as "ADD" | "REMOVE" | undefined;
+
       if (ballNumber >= 1 && ballNumber <= 75) {
         const idx = state.drawnBalls.indexOf(ballNumber);
-        if (idx >= 0) {
-          state.drawnBalls.splice(idx, 1);
+        if (forceAction === "ADD") {
+          if (idx < 0) state.drawnBalls.push(ballNumber);
+        } else if (forceAction === "REMOVE") {
+          if (idx >= 0) state.drawnBalls.splice(idx, 1);
         } else {
-          state.drawnBalls.push(ballNumber);
+          // Toggle clásico
+          if (idx >= 0) {
+            state.drawnBalls.splice(idx, 1);
+          } else {
+            state.drawnBalls.push(ballNumber);
+          }
         }
         for (const cl of state.claims) {
           if (
