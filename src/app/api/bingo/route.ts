@@ -24,7 +24,12 @@ import {
   SaasOrganizer,
   EventSeller,
 } from "@/lib/bingo-store";
-import { StageType, STAGES, validateTablePattern } from "@/lib/bingo-patterns";
+import {
+  StageType,
+  STAGES,
+  validateTablePattern,
+  getEffectiveStagePrize,
+} from "@/lib/bingo-patterns";
 
 function getClientIp(req: NextRequest): string {
   const forwarded = req.headers.get("x-forwarded-for");
@@ -1200,14 +1205,14 @@ async function handlePostAction(req: NextRequest): Promise<NextResponse> {
       const newStage = body.stage as StageType;
       if (STAGES[newStage]) {
         state.activeStage = newStage;
-        const stagePrize =
-          state.event.prizesByTableStage?.[String(state.activeTable)]?.[
-            newStage
-          ];
-        if (body.prizeName !== undefined) {
+        if (body.prizeName !== undefined && body.prizeName !== "") {
           state.currentPrizeName = body.prizeName;
-        } else if (stagePrize) {
-          state.currentPrizeName = stagePrize;
+        } else {
+          state.currentPrizeName = getEffectiveStagePrize(
+            state.event.prizesByTableStage,
+            state.activeTable,
+            newStage
+          );
         }
         state.isPausedForVerification = false;
         state.tieBreak = null;
@@ -1225,18 +1230,14 @@ async function handlePostAction(req: NextRequest): Promise<NextResponse> {
           (body.stage as StageType) || (nextTable === 6 ? "LLENA" : "LETRA");
         state.activeTable = nextTable;
         state.activeStage = nextStage;
-        const stagePrize =
-          state.event.prizesByTableStage?.[String(nextTable)]?.[nextStage] ||
-          state.event.prizesByTable?.[String(nextTable)];
         if (body.prizeName) {
           state.currentPrizeName = body.prizeName;
-        } else if (stagePrize) {
-          state.currentPrizeName = stagePrize;
         } else {
-          state.currentPrizeName =
-            nextTable === 6
-              ? "Premio Mayor - Tabla #6 Llena"
-              : `Premio Tabla #${nextTable}`;
+          state.currentPrizeName = getEffectiveStagePrize(
+            state.event.prizesByTableStage,
+            nextTable,
+            nextStage
+          );
         }
         if (resetBalls) {
           state.drawnBalls = [];
@@ -1445,7 +1446,7 @@ async function handlePostAction(req: NextRequest): Promise<NextResponse> {
         };
         state.winnersHistory.unshift(record);
 
-        // Si fue en una etapa combinada (ej. LINEA_Y_PUNTA), verificar qué figura queda pendiente
+        // Si fue en una etapa combinada (ej. LINEA_Y_PUNTA), verificar qué figura queda pendiente y actualizar el premio activo
         if (state.activeStage === "LINEA_Y_PUNTA") {
           const currentTableWinners = state.winnersHistory.filter(
             (w) => w.tableIndex === state.activeTable
@@ -1459,8 +1460,18 @@ async function handlePostAction(req: NextRequest): Promise<NextResponse> {
 
           if (hasWonLinea && !hasWonPunta) {
             state.activeStage = "PUNTA";
+            state.currentPrizeName = getEffectiveStagePrize(
+              state.event.prizesByTableStage,
+              state.activeTable,
+              "PUNTA"
+            );
           } else if (hasWonPunta && !hasWonLinea) {
             state.activeStage = "LINEA";
+            state.currentPrizeName = getEffectiveStagePrize(
+              state.event.prizesByTableStage,
+              state.activeTable,
+              "LINEA"
+            );
           }
         } else if (state.activeStage === "LINEA_Y_ESQUINAS") {
           const currentTableWinners = state.winnersHistory.filter(
@@ -1475,8 +1486,18 @@ async function handlePostAction(req: NextRequest): Promise<NextResponse> {
 
           if (hasWonLinea && !hasWonEsquinas) {
             state.activeStage = "ESQUINAS";
+            state.currentPrizeName = getEffectiveStagePrize(
+              state.event.prizesByTableStage,
+              state.activeTable,
+              "ESQUINAS"
+            );
           } else if (hasWonEsquinas && !hasWonLinea) {
             state.activeStage = "LINEA";
+            state.currentPrizeName = getEffectiveStagePrize(
+              state.event.prizesByTableStage,
+              state.activeTable,
+              "LINEA"
+            );
           }
         } else if (state.activeStage === "PUNTA_Y_ESQUINAS") {
           const currentTableWinners = state.winnersHistory.filter(
@@ -1491,8 +1512,18 @@ async function handlePostAction(req: NextRequest): Promise<NextResponse> {
 
           if (hasWonPunta && !hasWonEsquinas) {
             state.activeStage = "ESQUINAS";
+            state.currentPrizeName = getEffectiveStagePrize(
+              state.event.prizesByTableStage,
+              state.activeTable,
+              "ESQUINAS"
+            );
           } else if (hasWonEsquinas && !hasWonPunta) {
             state.activeStage = "PUNTA";
+            state.currentPrizeName = getEffectiveStagePrize(
+              state.event.prizesByTableStage,
+              state.activeTable,
+              "PUNTA"
+            );
           }
         }
 
@@ -1645,8 +1676,18 @@ async function handlePostAction(req: NextRequest): Promise<NextResponse> {
 
           if (hasWonLinea && !hasWonPunta) {
             targetState.activeStage = "PUNTA";
+            targetState.currentPrizeName = getEffectiveStagePrize(
+              targetState.event.prizesByTableStage,
+              targetState.activeTable,
+              "PUNTA"
+            );
           } else if (hasWonPunta && !hasWonLinea) {
             targetState.activeStage = "LINEA";
+            targetState.currentPrizeName = getEffectiveStagePrize(
+              targetState.event.prizesByTableStage,
+              targetState.activeTable,
+              "LINEA"
+            );
           }
         } else if (targetState.activeStage === "LINEA_Y_ESQUINAS") {
           const currentTableWinners = targetState.winnersHistory.filter(
@@ -1661,8 +1702,18 @@ async function handlePostAction(req: NextRequest): Promise<NextResponse> {
 
           if (hasWonLinea && !hasWonEsquinas) {
             targetState.activeStage = "ESQUINAS";
+            targetState.currentPrizeName = getEffectiveStagePrize(
+              targetState.event.prizesByTableStage,
+              targetState.activeTable,
+              "ESQUINAS"
+            );
           } else if (hasWonEsquinas && !hasWonLinea) {
             targetState.activeStage = "LINEA";
+            targetState.currentPrizeName = getEffectiveStagePrize(
+              targetState.event.prizesByTableStage,
+              targetState.activeTable,
+              "LINEA"
+            );
           }
         } else if (targetState.activeStage === "PUNTA_Y_ESQUINAS") {
           const currentTableWinners = targetState.winnersHistory.filter(
@@ -1677,8 +1728,18 @@ async function handlePostAction(req: NextRequest): Promise<NextResponse> {
 
           if (hasWonPunta && !hasWonEsquinas) {
             targetState.activeStage = "ESQUINAS";
+            targetState.currentPrizeName = getEffectiveStagePrize(
+              targetState.event.prizesByTableStage,
+              targetState.activeTable,
+              "ESQUINAS"
+            );
           } else if (hasWonEsquinas && !hasWonPunta) {
             targetState.activeStage = "PUNTA";
+            targetState.currentPrizeName = getEffectiveStagePrize(
+              targetState.event.prizesByTableStage,
+              targetState.activeTable,
+              "PUNTA"
+            );
           }
         }
       }

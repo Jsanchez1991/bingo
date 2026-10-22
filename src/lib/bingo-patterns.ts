@@ -96,6 +96,46 @@ export const STAGE_ORDER: StageType[] = [
   "LLENA",
 ];
 
+/**
+ * Obtiene el nombre del premio dinámico para una etapa y tabla.
+ * Si la etapa es combinada (ej. LINEA_Y_PUNTA), hereda automáticamente los premios individuales
+ * configurados arriba para Línea y Punta si no se colocó un premio manual exclusivo.
+ */
+export function getEffectiveStagePrize(
+  prizesMatrix: Record<string, Partial<Record<StageType, string>>> | undefined,
+  tableIndex: number,
+  stage: StageType
+): string {
+  const tKey = String(tableIndex);
+  const matrix = prizesMatrix || {};
+  const currentTablePrizes = matrix[tKey] || {};
+
+  const lineaPrize = currentTablePrizes.LINEA || "$10 en Efectivo";
+  const puntaPrize = currentTablePrizes.PUNTA || "$5 / Sorpresa";
+  const esquinasPrize = currentTablePrizes.ESQUINAS || "$15 en Efectivo";
+
+  if (stage === "LINEA_Y_PUNTA") {
+    return (
+      currentTablePrizes.LINEA_Y_PUNTA ||
+      `Línea (${lineaPrize}) + Punta (${puntaPrize})`
+    );
+  }
+  if (stage === "LINEA_Y_ESQUINAS") {
+    return (
+      currentTablePrizes.LINEA_Y_ESQUINAS ||
+      `Línea (${lineaPrize}) + 4 Esquinas (${esquinasPrize})`
+    );
+  }
+  if (stage === "PUNTA_Y_ESQUINAS") {
+    return (
+      currentTablePrizes.PUNTA_Y_ESQUINAS ||
+      `Punta (${puntaPrize}) + 4 Esquinas (${esquinasPrize})`
+    );
+  }
+
+  return currentTablePrizes[stage] || `Premio ${STAGES[stage]?.shortLabel || stage}`;
+}
+
 export const TABLE_LETTERS: Record<number, { letter: string; title: string }> = {
   1: { letter: "B", title: "Letra B" },
   2: { letter: "I", title: "Letra I" },

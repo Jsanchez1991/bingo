@@ -17,6 +17,7 @@ import {
   SaasPlanDefinition,
   SaasPlanId,
   parsePriceUsd,
+  getEffectiveStagePrize,
 } from "@/lib/bingo-patterns";
 import {
   announceBallVoice,
@@ -1070,16 +1071,38 @@ export default function AdminOrganizerPage() {
                     const tKey = String(editingPrizeTableTab);
                     const currentVal =
                       eventForm.prizesByTableStage?.[tKey]?.[stKey] || "";
+                    const isCombo =
+                      stKey === "LINEA_Y_PUNTA" ||
+                      stKey === "LINEA_Y_ESQUINAS" ||
+                      stKey === "PUNTA_Y_ESQUINAS";
+
+                    const dynamicInherited = getEffectiveStagePrize(
+                      eventForm.prizesByTableStage,
+                      editingPrizeTableTab,
+                      stKey
+                    );
 
                     return (
                       <div
                         key={stKey}
-                        className="bg-slate-900 border border-slate-800 rounded-xl p-3"
+                        className={`border rounded-xl p-3 ${
+                          isCombo
+                            ? "bg-slate-900/90 border-amber-500/40 ring-1 ring-amber-500/20"
+                            : "bg-slate-900 border-slate-800"
+                        }`}
                       >
-                        <label className="block text-xs font-extrabold text-amber-300 mb-1">
-                          {st.icon} Premio para {st.shortLabel} (Tabla #
-                          {editingPrizeTableTab})
-                        </label>
+                        <div className="flex items-center justify-between gap-1 mb-1">
+                          <label className="block text-xs font-extrabold text-amber-300">
+                            {st.icon} Premio para {st.shortLabel} (Tabla #
+                            {editingPrizeTableTab})
+                          </label>
+                          {isCombo && (
+                            <span className="text-[10px] font-black uppercase bg-amber-400 text-slate-950 px-1.5 py-0.2 rounded">
+                              Automático
+                            </span>
+                          )}
+                        </div>
+
                         <input
                           type="text"
                           value={currentVal}
@@ -1098,11 +1121,17 @@ export default function AdminOrganizerPage() {
                               },
                             });
                           }}
-                          placeholder={`Ej. Premio ${st.shortLabel}`}
+                          placeholder={
+                            isCombo
+                              ? `Auto: ${dynamicInherited}`
+                              : `Ej. Premio ${st.shortLabel}`
+                          }
                           className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white font-bold text-sm"
                         />
                         <span className="block text-[11px] text-slate-400 mt-1">
-                          {st.description}
+                          {isCombo
+                            ? `⚡ Toma automáticamente los premios configurados arriba: ${dynamicInherited}`
+                            : st.description}
                         </span>
                       </div>
                     );
@@ -1244,9 +1273,11 @@ export default function AdminOrganizerPage() {
               {STAGE_ORDER.map((stKey) => {
                 const st = STAGES[stKey];
                 const active = gameState.activeStage === stKey;
-                const configuredPrizeForOption =
-                  prizesMatrix[String(gameState.activeTable)]?.[stKey] ||
-                  "Premio por definir";
+                const configuredPrizeForOption = getEffectiveStagePrize(
+                  prizesMatrix,
+                  gameState.activeTable,
+                  stKey
+                );
 
                 return (
                   <button
@@ -1824,44 +1855,50 @@ export default function AdminOrganizerPage() {
                             <button
                               type="button"
                               onClick={() => {
+                                const lineaPrize =
+                                  prizesMatrix[String(gameState.activeTable)]?.LINEA ||
+                                  "$10 en Efectivo";
                                 postAction({
                                   action: "CONFIRM_DIRECT_WINNER",
                                   claimId: selectedClaim.id,
                                   awardPatternType: "LINEA",
-                                  customPrizeName: `${gameState.currentPrizeName} (Línea)`,
+                                  customPrizeName: lineaPrize,
                                 });
                                 setSelectedClaimId(null);
                                 announceCustomVoice(
                                   `¡Ganador de Línea confirmado: ${selectedClaim.buyerName} con el Cartón número ${Number(
                                     selectedClaim.cardNumber
-                                  )}! ¡Seguimos jugando por la Punta!`,
+                                  )}! ¡Premio: ${lineaPrize}! ¡Seguimos jugando por la Punta!`,
                                   soundEnabled
                                 );
                               }}
                               className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black text-xs shadow cursor-pointer"
                             >
-                              📏 Declarar Ganador de LÍNEA
+                              📏 Ganador de LÍNEA ({prizesMatrix[String(gameState.activeTable)]?.LINEA || "$10"})
                             </button>
                             <button
                               type="button"
                               onClick={() => {
+                                const puntaPrize =
+                                  prizesMatrix[String(gameState.activeTable)]?.PUNTA ||
+                                  "$5 / Sorpresa";
                                 postAction({
                                   action: "CONFIRM_DIRECT_WINNER",
                                   claimId: selectedClaim.id,
                                   awardPatternType: "PUNTA",
-                                  customPrizeName: `${gameState.currentPrizeName} (Punta)`,
+                                  customPrizeName: puntaPrize,
                                 });
                                 setSelectedClaimId(null);
                                 announceCustomVoice(
                                   `¡Ganador de Punta confirmado: ${selectedClaim.buyerName} con el Cartón número ${Number(
                                     selectedClaim.cardNumber
-                                  )}! ¡Seguimos jugando por la Línea!`,
+                                  )}! ¡Premio: ${puntaPrize}! ¡Seguimos jugando por la Línea!`,
                                   soundEnabled
                                 );
                               }}
                               className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs shadow cursor-pointer"
                             >
-                              📐 Declarar Ganador de PUNTA
+                              📐 Ganador de PUNTA ({prizesMatrix[String(gameState.activeTable)]?.PUNTA || "$5"})
                             </button>
                           </>
                         ) : gameState.activeStage === "LINEA_Y_ESQUINAS" ? (
@@ -1869,30 +1906,38 @@ export default function AdminOrganizerPage() {
                             <button
                               type="button"
                               onClick={() => {
+                                const lineaPrize =
+                                  prizesMatrix[String(gameState.activeTable)]?.LINEA ||
+                                  "$10 en Efectivo";
                                 postAction({
                                   action: "CONFIRM_DIRECT_WINNER",
                                   claimId: selectedClaim.id,
                                   awardPatternType: "LINEA",
+                                  customPrizeName: lineaPrize,
                                 });
                                 setSelectedClaimId(null);
                               }}
                               className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black text-xs shadow cursor-pointer"
                             >
-                              📏 Ganador de LÍNEA
+                              📏 Ganador de LÍNEA ({prizesMatrix[String(gameState.activeTable)]?.LINEA || "$10"})
                             </button>
                             <button
                               type="button"
                               onClick={() => {
+                                const esquinasPrize =
+                                  prizesMatrix[String(gameState.activeTable)]?.ESQUINAS ||
+                                  "$15 en Efectivo";
                                 postAction({
                                   action: "CONFIRM_DIRECT_WINNER",
                                   claimId: selectedClaim.id,
                                   awardPatternType: "ESQUINAS",
+                                  customPrizeName: esquinasPrize,
                                 });
                                 setSelectedClaimId(null);
                               }}
                               className="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-black text-xs shadow cursor-pointer"
                             >
-                              ⭐ Ganador de 4 ESQUINAS
+                              ⭐ Ganador de 4 ESQUINAS ({prizesMatrix[String(gameState.activeTable)]?.ESQUINAS || "$15"})
                             </button>
                           </>
                         ) : gameState.activeStage === "PUNTA_Y_ESQUINAS" ? (
@@ -1900,30 +1945,38 @@ export default function AdminOrganizerPage() {
                             <button
                               type="button"
                               onClick={() => {
+                                const puntaPrize =
+                                  prizesMatrix[String(gameState.activeTable)]?.PUNTA ||
+                                  "$5 / Sorpresa";
                                 postAction({
                                   action: "CONFIRM_DIRECT_WINNER",
                                   claimId: selectedClaim.id,
                                   awardPatternType: "PUNTA",
+                                  customPrizeName: puntaPrize,
                                 });
                                 setSelectedClaimId(null);
                               }}
                               className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs shadow cursor-pointer"
                             >
-                              📐 Ganador de PUNTA
+                              📐 Ganador de PUNTA ({prizesMatrix[String(gameState.activeTable)]?.PUNTA || "$5"})
                             </button>
                             <button
                               type="button"
                               onClick={() => {
+                                const esquinasPrize =
+                                  prizesMatrix[String(gameState.activeTable)]?.ESQUINAS ||
+                                  "$15 en Efectivo";
                                 postAction({
                                   action: "CONFIRM_DIRECT_WINNER",
                                   claimId: selectedClaim.id,
                                   awardPatternType: "ESQUINAS",
+                                  customPrizeName: esquinasPrize,
                                 });
                                 setSelectedClaimId(null);
                               }}
                               className="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-black text-xs shadow cursor-pointer"
                             >
-                              ⭐ Ganador de 4 ESQUINAS
+                              ⭐ Ganador de 4 ESQUINAS ({prizesMatrix[String(gameState.activeTable)]?.ESQUINAS || "$15"})
                             </button>
                           </>
                         ) : (
