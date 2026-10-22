@@ -434,17 +434,20 @@ async function handlePostAction(req: NextRequest): Promise<NextResponse> {
       const organizerId = String(body.organizerId || "org-01");
       const organizer =
         db.organizers.find((o) => o.id === organizerId) || db.organizers[0];
-      const plan = SAAS_PLANS[organizer.planId];
+      const plan = SAAS_PLANS[organizer.planId] || SAAS_PLANS.PAQUETE_100;
 
       const currentOrgEvents = Object.values(db.events).filter(
         (e) => e.organizerId === organizer.id
       );
-      if (currentOrgEvents.length >= plan.maxEvents) {
+
+      // Si es Super-Admin o si el plan lo permite
+      const isSuperAdmin = body.isSuperAdmin === true;
+      if (!isSuperAdmin && currentOrgEvents.length >= plan.maxEvents) {
         return NextResponse.json(
           {
             ok: false,
             limitReached: true,
-            message: `Tu ${plan.name} permite hasta ${plan.maxEvents} evento(s). Actualiza tu plan para crear más eventos simultáneos.`,
+            message: `Tu ${plan.name} permite hasta ${plan.maxEvents} evento(s) activo(s). Elimina o finaliza el anterior, o actualiza al plan Binguero Frecuente para tener eventos ilimitados.`,
           },
           { status: 400 }
         );

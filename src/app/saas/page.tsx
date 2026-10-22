@@ -330,6 +330,7 @@ export default function SaasSuperAdminPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         action: "CREATE_EVENT",
+        isSuperAdmin: true,
         organizerId: newEventOrgId,
         title: newEventTitle,
         dateTimeText: newEventDate,
