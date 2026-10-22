@@ -1075,8 +1075,6 @@ export default function AdminOrganizerPage() {
                   {STAGE_ORDER.map((stKey) => {
                     const st = STAGES[stKey];
                     const tKey = String(editingPrizeTableTab);
-                    const currentVal =
-                      eventForm.prizesByTableStage?.[tKey]?.[stKey] || "";
                     const isCombo =
                       stKey === "LINEA_Y_PUNTA" ||
                       stKey === "LINEA_Y_ESQUINAS" ||
@@ -1087,6 +1085,10 @@ export default function AdminOrganizerPage() {
                       editingPrizeTableTab,
                       stKey
                     );
+
+                    const currentVal = isCombo
+                      ? dynamicInherited
+                      : eventForm.prizesByTableStage?.[tKey]?.[stKey] || "";
 
                     return (
                       <div
@@ -1104,39 +1106,43 @@ export default function AdminOrganizerPage() {
                           </label>
                           {isCombo && (
                             <span className="text-[10px] font-black uppercase bg-amber-400 text-slate-950 px-1.5 py-0.2 rounded">
-                              Automático
+                              100% Automático
                             </span>
                           )}
                         </div>
 
-                        <input
-                          type="text"
-                          value={currentVal}
-                          onChange={(e) => {
-                            const prevMatrix =
-                              eventForm.prizesByTableStage ||
-                              DEFAULT_PRIZES_BY_TABLE_STAGE;
-                            setEventForm({
-                              ...eventForm,
-                              prizesByTableStage: {
-                                ...prevMatrix,
-                                [tKey]: {
-                                  ...(prevMatrix[tKey] || {}),
-                                  [stKey]: e.target.value,
+                        {isCombo ? (
+                          <div className="w-full bg-slate-950 border border-amber-500/40 rounded-lg px-3 py-2 text-amber-300 font-extrabold text-sm flex items-center justify-between">
+                            <span>{dynamicInherited}</span>
+                            <span className="text-xs text-slate-400 font-normal">🔒 Vinculado</span>
+                          </div>
+                        ) : (
+                          <input
+                            type="text"
+                            value={currentVal}
+                            onChange={(e) => {
+                              const prevMatrix =
+                                eventForm.prizesByTableStage ||
+                                DEFAULT_PRIZES_BY_TABLE_STAGE;
+                              setEventForm({
+                                ...eventForm,
+                                prizesByTableStage: {
+                                  ...prevMatrix,
+                                  [tKey]: {
+                                    ...(prevMatrix[tKey] || {}),
+                                    [stKey]: e.target.value,
+                                  },
                                 },
-                              },
-                            });
-                          }}
-                          placeholder={
-                            isCombo
-                              ? `Auto: ${dynamicInherited}`
-                              : `Ej. Premio ${st.shortLabel}`
-                          }
-                          className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white font-bold text-sm"
-                        />
+                              });
+                            }}
+                            placeholder={`Ej. Premio ${st.shortLabel}`}
+                            className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white font-bold text-sm"
+                          />
+                        )}
+
                         <span className="block text-[11px] text-slate-400 mt-1">
                           {isCombo
-                            ? `⚡ Toma automáticamente los premios configurados arriba: ${dynamicInherited}`
+                            ? `⚡ Desglose automático de arriba: ${dynamicInherited}`
                             : st.description}
                         </span>
                       </div>

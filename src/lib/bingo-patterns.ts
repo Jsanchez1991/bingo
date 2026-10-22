@@ -97,9 +97,9 @@ export const STAGE_ORDER: StageType[] = [
 ];
 
 /**
- * Obtiene el nombre del premio dinámico para una etapa y tabla.
- * Si la etapa es combinada (ej. LINEA_Y_PUNTA), hereda automáticamente los premios individuales
- * configurados arriba para Línea y Punta si no se colocó un premio manual exclusivo.
+ * Obtiene el desglose o nombre del premio dinámico para una etapa y tabla.
+ * Si la etapa es combinada (ej. LINEA_Y_PUNTA), hereda y muestra exactamente:
+ * Línea: [Valor] • Punta: [Valor] (no sumados, sino específicos).
  */
 export function getEffectiveStagePrize(
   prizesMatrix: Record<string, Partial<Record<StageType, string>>> | undefined,
@@ -115,22 +115,13 @@ export function getEffectiveStagePrize(
   const esquinasPrize = currentTablePrizes.ESQUINAS || "$15 en Efectivo";
 
   if (stage === "LINEA_Y_PUNTA") {
-    return (
-      currentTablePrizes.LINEA_Y_PUNTA ||
-      `Línea (${lineaPrize}) + Punta (${puntaPrize})`
-    );
+    return `Línea: ${lineaPrize} • Punta: ${puntaPrize}`;
   }
   if (stage === "LINEA_Y_ESQUINAS") {
-    return (
-      currentTablePrizes.LINEA_Y_ESQUINAS ||
-      `Línea (${lineaPrize}) + 4 Esquinas (${esquinasPrize})`
-    );
+    return `Línea: ${lineaPrize} • 4 Esquinas: ${esquinasPrize}`;
   }
   if (stage === "PUNTA_Y_ESQUINAS") {
-    return (
-      currentTablePrizes.PUNTA_Y_ESQUINAS ||
-      `Punta (${puntaPrize}) + 4 Esquinas (${esquinasPrize})`
-    );
+    return `Punta: ${puntaPrize} • 4 Esquinas: ${esquinasPrize}`;
   }
 
   return currentTablePrizes[stage] || `Premio ${STAGES[stage]?.shortLabel || stage}`;
