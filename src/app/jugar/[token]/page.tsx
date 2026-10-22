@@ -47,6 +47,8 @@ export default function PlayerBingoPage() {
   const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
   const prevLastBallRef = useRef<number | null>(null);
   const isFirstFetchRef = useRef<boolean>(true);
+  // Candado para que las marcas locales nunca se despinten con el polling de 1.5s
+  const pendingMarksRef = useRef<Map<string, { marked: boolean; timestamp: number }>>(new Map());
 
   useEffect(() => {
     const storageKey = "gran_bingo_device_id";
@@ -117,13 +119,45 @@ export default function PlayerBingoPage() {
       prevLastBallRef.current = currentLastBall;
 
       setGameState(newState);
-      setPlayerCards(
+      const incomingCards: BingoCardSheet[] =
         data.playerCards && data.playerCards.length > 0
           ? data.playerCards
           : data.card
           ? [data.card]
-          : []
-      );
+          : [];
+
+      // Fusionar marcas locales recientes que aún no han retornado del servidor para evitar que se despinten
+      const now = Date.now();
+      const mergedCards = incomingCards.map((c) => {
+        const updatedMarkedByTable = { ...c.markedByTable };
+        for (const [key, pending] of pendingMarksRef.current.entries()) {
+          const [pCardNum, pTableIdx, pNumStr] = key.split("_");
+          const pNum = Number(pNumStr);
+          if (c.cardNumber === pCardNum) {
+            const tableList = [...(updatedMarkedByTable[pTableIdx] || [])];
+            const hasNum = tableList.includes(pNum);
+            if (pending.marked && !hasNum) {
+              if (now - pending.timestamp < 4000) {
+                tableList.push(pNum);
+                updatedMarkedByTable[pTableIdx] = tableList;
+              } else {
+                pendingMarksRef.current.delete(key);
+              }
+            } else if (!pending.marked && hasNum) {
+              if (now - pending.timestamp < 4000) {
+                updatedMarkedByTable[pTableIdx] = tableList.filter((n) => n !== pNum);
+              } else {
+                pendingMarksRef.current.delete(key);
+              }
+            } else {
+              pendingMarksRef.current.delete(key);
+            }
+          }
+        }
+        return { ...c, markedByTable: updatedMarkedByTable };
+      });
+
+      setPlayerCards(mergedCards);
       setAccessAllowed(data.accessAllowed);
       setClientIp(data.clientIp || "");
       setErrorMsg(null);
@@ -149,13 +183,15 @@ export default function PlayerBingoPage() {
       playDaubPop();
     }
     const key = String(tableIndex);
+    const markKey = `${cardNumber}_${tableIndex}_${num}`;
 
-    // Actualización optimista en la hoja correspondiente del cliente
+    let nextMarked = true;
     setPlayerCards((prevCards) =>
       prevCards.map((c) => {
         if (c.cardNumber !== cardNumber) return c;
         const currentList = c.markedByTable[key] || [];
         const exists = currentList.includes(num);
+        nextMarked = !exists;
         const updatedList = exists
           ? currentList.filter((n) => n !== num)
           : [...currentList, num];
@@ -169,17 +205,28 @@ export default function PlayerBingoPage() {
       })
     );
 
-    await fetch("/api/bingo", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: "MARK_NUMBER",
-        token,
-        cardNumber,
-        tableIndex,
-        number: num,
-      }),
+    pendingMarksRef.current.set(markKey, {
+      marked: nextMarked,
+      timestamp: Date.now(),
     });
+
+    try {
+      const res = await fetch("/api/bingo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "MARK_NUMBER",
+          token,
+          cardNumber,
+          tableIndex,
+          number: num,
+        }),
+      });
+      const data = await res.json();
+      if (data.ok && data.playerCards) {
+        pendingMarksRef.current.delete(markKey);
+      }
+    } catch {}
   };
 
   // Pintar automáticamente las bolillas salidas en TODAS las tablas abiertas de ese número de juego
@@ -747,20 +794,28 @@ export default function PlayerBingoPage() {
 
                 const markedList =
                   sheetCard.markedByTable[String(zoomedTable)] || [];
+
+                // Premios que esta tabla ya ganó en el historial
+                const wonRecordsForCard = (gameState.winnersHistory || []).filter(
+                  (w) => w.cardNumber === sheetCard.cardNumber && w.tableIndex === zoomedTable
+                );
+                const alreadyWonPatternTypes = wonRecordsForCard.map((w) => w.patternType || w.stage);
+
                 const liveValidation = validateTablePattern(
                   tableObj.grid,
                   zoomedTable,
                   gameState.activeStage,
                   gameState.drawnBalls,
-                  markedList
+                  markedList,
+                  alreadyWonPatternTypes
                 );
 
-                const sheetClaim: BingoClaim | undefined =
+                const pendingClaim: BingoClaim | undefined =
                   gameState.claims.find(
                     (c) =>
                       c.cardNumber === sheetCard.cardNumber &&
                       c.tableIndex === zoomedTable &&
-                      c.stage === gameState.activeStage
+                      c.status === "PENDIENTE"
                   );
 
                 return (
@@ -782,6 +837,19 @@ export default function PlayerBingoPage() {
                       </span>
                     </div>
 
+                    {/* Banner si esta tabla ya ganó uno o más premios en este juego */}
+                    {wonRecordsForCard.length > 0 && (
+                      <div className="mb-2 p-2.5 rounded-2xl bg-emerald-600 text-white border-2 border-slate-950 font-black text-xs sm:text-sm shadow">
+                        <div className="flex items-center gap-1.5 justify-center">
+                          <span>🏆</span>
+                          <span>¡Premio Ganado: {wonRecordsForCard.map((w) => w.patternName).join(", ")}!</span>
+                        </div>
+                        <div className="text-[11px] text-emerald-100 font-bold text-center mt-0.5">
+                          ✨ Tu tabla sigue habilitada para jugar por las siguientes figuras.
+                        </div>
+                      </div>
+                    )}
+
                     <BingoTableCard
                       tableIndex={tableObj.tableIndex}
                       serialCode={tableObj.serialCode}
@@ -801,29 +869,14 @@ export default function PlayerBingoPage() {
                     />
 
                     {/* Botón de Enviar Verificación individual para este cartón */}
-                    <div className="mt-3">
-                      {sheetClaim ? (
-                        <div
-                          className={`p-3.5 rounded-2xl border-2 text-center ${
-                            sheetClaim.status === "VALIDO"
-                              ? "bg-emerald-600 text-white border-slate-950"
-                              : sheetClaim.status === "RECHAZADO"
-                              ? "bg-red-600 text-white border-slate-950"
-                              : "bg-amber-400 text-slate-950 border-slate-950"
-                          }`}
-                        >
+                    <div className="mt-3 space-y-2">
+                      {pendingClaim ? (
+                        <div className="p-3.5 rounded-2xl border-2 text-center bg-amber-400 text-slate-950 border-slate-950 shadow-md">
                           <div className="text-lg sm:text-xl font-black">
-                            {sheetClaim.status === "VALIDO" &&
-                              `✅ ¡CARTÓN #${sheetCard.cardNumber} VERIFICADO VÁLIDO!`}
-                            {sheetClaim.status === "PENDIENTE" &&
-                              `⏳ CARTÓN #${sheetCard.cardNumber} EN REVISIÓN...`}
-                            {sheetClaim.status === "RECHAZADO" &&
-                              `❌ AÚN NO COMPLETA LA FIGURA`}
+                            ⏳ CARTÓN #{sheetCard.cardNumber} EN REVISIÓN...
                           </div>
                           <p className="text-xs sm:text-sm font-bold mt-0.5">
-                            Reclamo {sheetClaim.id} •{" "}
-                            {STAGES[sheetClaim.stage].shortLabel} (
-                            {sheetClaim.validation.patternName})
+                            Reclamo {pendingClaim.id} • {pendingClaim.validation.patternName}
                           </p>
                         </div>
                       ) : (
@@ -833,9 +886,15 @@ export default function PlayerBingoPage() {
                             handleSendClaim(sheetCard.cardNumber, zoomedTable)
                           }
                           disabled={submittingCardNum === sheetCard.cardNumber}
-                          className="w-full py-4 px-5 rounded-2xl bg-gradient-to-r from-red-600 via-rose-600 to-orange-600 hover:from-red-500 hover:to-orange-500 text-white font-black text-xl sm:text-2xl shadow-xl border-4 border-slate-950 active:scale-98 transition-all cursor-pointer"
+                          className={`w-full py-4 px-5 rounded-2xl font-black text-xl sm:text-2xl shadow-xl border-4 border-slate-950 active:scale-98 transition-all cursor-pointer ${
+                            liveValidation.isValidOfficial
+                              ? "bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-500 hover:from-emerald-500 hover:to-teal-400 text-white ring-4 ring-yellow-300 animate-pulse"
+                              : "bg-gradient-to-r from-red-600 via-rose-600 to-orange-600 hover:from-red-500 hover:to-orange-500 text-white"
+                          }`}
                         >
-                          🎉 ¡BINGO! ENVIAR CARTÓN #{sheetCard.cardNumber}
+                          {liveValidation.isValidOfficial
+                            ? `🎉 ¡BINGO! ENVIAR (${liveValidation.patternName})`
+                            : `🎉 ¡BINGO! ENVIAR CARTÓN #${sheetCard.cardNumber}`}
                         </button>
                       )}
                     </div>

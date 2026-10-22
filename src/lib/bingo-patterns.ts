@@ -182,6 +182,7 @@ export function applyTableMask(
 }
 
 export interface ValidationResult {
+  patternType?: StageType;
   isValidOfficial: boolean;
   isMarkedByPlayer: boolean;
   patternName: string;
@@ -198,7 +199,8 @@ export function validateTablePattern(
   tableIndex: number,
   stage: StageType,
   drawnBalls: number[],
-  markedNumbers: number[]
+  markedNumbers: number[],
+  alreadyWonPatternTypes?: StageType[]
 ): ValidationResult {
   const drawnSet = new Set(drawnBalls);
   const markedSet = new Set(markedNumbers);
@@ -275,20 +277,25 @@ export function validateTablePattern(
     candidateLines.push({ name: "Diagonal Invertida (↗)", cells: diag2 });
   }
 
+  const hasWonFigure = (fig: StageType) => (alreadyWonPatternTypes || []).includes(fig);
+
   // 1. MODO LÍNEA
   if (stage === "LINEA") {
-
-    for (const line of candidateLines) {
-      const allDrawn = line.cells.every(([r, c]) => isCellDrawn(r, c));
-      if (allDrawn) {
-        const allMarked = line.cells.every(([r, c]) => isCellMarked(r, c));
-        return {
-          isValidOfficial: true,
-          isMarkedByPlayer: allMarked,
-          patternName: line.name,
-          winningCells: line.cells,
-          missingOfficialNumbers: [],
-        };
+    const alreadyWon = hasWonFigure("LINEA");
+    if (!alreadyWon) {
+      for (const line of candidateLines) {
+        const allDrawn = line.cells.every(([r, c]) => isCellDrawn(r, c));
+        if (allDrawn) {
+          const allMarked = line.cells.every(([r, c]) => isCellMarked(r, c));
+          return {
+            isValidOfficial: true,
+            isMarkedByPlayer: allMarked,
+            patternName: line.name,
+            patternType: "LINEA",
+            winningCells: line.cells,
+            missingOfficialNumbers: [],
+          };
+        }
       }
     }
 
@@ -307,7 +314,8 @@ export function validateTablePattern(
     return {
       isValidOfficial: false,
       isMarkedByPlayer: false,
-      patternName: bestLine.name,
+      patternName: alreadyWon ? "Línea (Ya ganada por este cartón)" : bestLine.name,
+      patternType: "LINEA",
       winningCells: [],
       missingOfficialNumbers: minMissing,
     };
@@ -321,23 +329,28 @@ export function validateTablePattern(
       { name: "Punta Inferior B", coord: [4, 0] },
       { name: "Punta Inferior O", coord: [4, 4] },
     ];
-    const hitCorners = corners.filter(({ coord: [r, c] }) => isCellDrawn(r, c));
-    if (hitCorners.length > 0) {
-      const markedHit = hitCorners.some(({ coord: [r, c] }) =>
-        isCellMarked(r, c)
-      );
-      return {
-        isValidOfficial: true,
-        isMarkedByPlayer: markedHit,
-        patternName: hitCorners.map((h) => h.name).join(" + "),
-        winningCells: hitCorners.map((h) => h.coord),
-        missingOfficialNumbers: [],
-      };
+    const alreadyWon = hasWonFigure("PUNTA");
+    if (!alreadyWon) {
+      const hitCorners = corners.filter(({ coord: [r, c] }) => isCellDrawn(r, c));
+      if (hitCorners.length > 0) {
+        const markedHit = hitCorners.some(({ coord: [r, c] }) =>
+          isCellMarked(r, c)
+        );
+        return {
+          isValidOfficial: true,
+          isMarkedByPlayer: markedHit,
+          patternName: hitCorners.map((h) => h.name).join(" + "),
+          patternType: "PUNTA",
+          winningCells: hitCorners.map((h) => h.coord),
+          missingOfficialNumbers: [],
+        };
+      }
     }
     return {
       isValidOfficial: false,
       isMarkedByPlayer: false,
-      patternName: "Punta (Esquina)",
+      patternName: alreadyWon ? "Punta (Ya ganada por este cartón)" : "Punta (Esquina)",
+      patternType: "PUNTA",
       winningCells: [],
       missingOfficialNumbers: corners.map(({ coord: [r, c] }) => grid[r][c]),
     };
@@ -354,79 +367,103 @@ export function validateTablePattern(
     const missingOfficial = corners
       .filter(([r, c]) => !isCellDrawn(r, c))
       .map(([r, c]) => grid[r][c]);
-    const isValidOfficial = missingOfficial.length === 0;
+    const alreadyWon = hasWonFigure("ESQUINAS");
+    const isValidOfficial = !alreadyWon && missingOfficial.length === 0;
     const isMarkedByPlayer = corners.every(([r, c]) => isCellMarked(r, c));
 
     return {
       isValidOfficial,
       isMarkedByPlayer,
-      patternName: "4 Esquinas Completas",
+      patternName: alreadyWon ? "4 Esquinas (Ya ganadas por este cartón)" : "4 Esquinas Completas",
+      patternType: "ESQUINAS",
       winningCells: isValidOfficial ? corners : [],
       missingOfficialNumbers: missingOfficial,
     };
   }
 
-  // 3-B. MODO: LÍNEA O PUNTA (Cualquiera de las dos que haga primero)
+  // 3-B. MODO: LÍNEA O PUNTA (Cualquiera de las dos que haga primero, o la que tenga pendiente)
   if (stage === "LINEA_Y_PUNTA") {
-    // 1. Revisar si completó alguna línea
-    for (const line of candidateLines) {
-      if (line.cells.every(([r, c]) => isCellDrawn(r, c))) {
-        const isMarked = line.cells.every(([r, c]) => isCellMarked(r, c));
+    // Si NO ha ganado línea, revisar si completó alguna línea
+    if (!hasWonFigure("LINEA")) {
+      for (const line of candidateLines) {
+        if (line.cells.every(([r, c]) => isCellDrawn(r, c))) {
+          const isMarked = line.cells.every(([r, c]) => isCellMarked(r, c));
+          return {
+            isValidOfficial: true,
+            isMarkedByPlayer: isMarked,
+            patternName: `${line.name} (Línea)`,
+            patternType: "LINEA",
+            winningCells: line.cells,
+            missingOfficialNumbers: [],
+          };
+        }
+      }
+    }
+
+    // Si NO ha ganado punta, revisar si completó alguna punta
+    if (!hasWonFigure("PUNTA")) {
+      const corners: { name: string; coord: [number, number] }[] = [
+        { name: "Punta Sup B", coord: [0, 0] },
+        { name: "Punta Sup O", coord: [0, 4] },
+        { name: "Punta Inf B", coord: [4, 0] },
+        { name: "Punta Inf O", coord: [4, 4] },
+      ];
+      const hitCorners = corners.filter(({ coord: [r, c] }) => isCellDrawn(r, c));
+      if (hitCorners.length > 0) {
+        const isMarked = hitCorners.some(({ coord: [r, c] }) => isCellMarked(r, c));
         return {
           isValidOfficial: true,
           isMarkedByPlayer: isMarked,
-          patternName: `${line.name} (Línea o Punta)`,
-          winningCells: line.cells,
+          patternName: `${hitCorners[0].name} (Punta)`,
+          patternType: "PUNTA",
+          winningCells: [hitCorners[0].coord],
           missingOfficialNumbers: [],
         };
       }
     }
 
-    // 2. Revisar si completó alguna punta
-    const corners: { name: string; coord: [number, number] }[] = [
+    const cornersCoords: { name: string; coord: [number, number] }[] = [
       { name: "Punta Sup B", coord: [0, 0] },
       { name: "Punta Sup O", coord: [0, 4] },
       { name: "Punta Inf B", coord: [4, 0] },
       { name: "Punta Inf O", coord: [4, 4] },
     ];
-    const hitCorners = corners.filter(({ coord: [r, c] }) => isCellDrawn(r, c));
-    if (hitCorners.length > 0) {
-      const isMarked = hitCorners.some(({ coord: [r, c] }) => isCellMarked(r, c));
-      return {
-        isValidOfficial: true,
-        isMarkedByPlayer: isMarked,
-        patternName: `${hitCorners[0].name} (Línea o Punta)`,
-        winningCells: [hitCorners[0].coord],
-        missingOfficialNumbers: [],
-      };
-    }
-
     return {
       isValidOfficial: false,
       isMarkedByPlayer: false,
-      patternName: "Línea o Punta",
+      patternName: hasWonFigure("PUNTA") && hasWonFigure("LINEA")
+        ? "Línea y Punta (Ambas ya ganadas por este cartón)"
+        : hasWonFigure("PUNTA")
+        ? "Buscando Línea (Punta ya ganada)"
+        : hasWonFigure("LINEA")
+        ? "Buscando Punta (Línea ya ganada)"
+        : "Línea o Punta",
+      patternType: !hasWonFigure("LINEA") ? "LINEA" : "PUNTA",
       winningCells: [],
-      missingOfficialNumbers: corners.map(({ coord: [r, c] }) => grid[r][c]),
+      missingOfficialNumbers: cornersCoords.map(({ coord: [r, c] }) => grid[r][c]),
     };
   }
 
-  // 3-C. MODO: LÍNEA O 4 ESQUINAS (Cualquiera de las dos que haga primero)
+  // 3-C. MODO: LÍNEA O 4 ESQUINAS (Cualquiera de las dos que haga primero, o la que tenga pendiente)
   if (stage === "LINEA_Y_ESQUINAS") {
-    // 1. Revisar si completó alguna línea
-    for (const line of candidateLines) {
-      if (line.cells.every(([r, c]) => isCellDrawn(r, c))) {
-        const isMarked = line.cells.every(([r, c]) => isCellMarked(r, c));
-        return {
-          isValidOfficial: true,
-          isMarkedByPlayer: isMarked,
-          patternName: `${line.name} (Línea o 4 Esquinas)`,
-          winningCells: line.cells,
-          missingOfficialNumbers: [],
-        };
+    // Si NO ha ganado línea, revisar líneas
+    if (!hasWonFigure("LINEA")) {
+      for (const line of candidateLines) {
+        if (line.cells.every(([r, c]) => isCellDrawn(r, c))) {
+          const isMarked = line.cells.every(([r, c]) => isCellMarked(r, c));
+          return {
+            isValidOfficial: true,
+            isMarkedByPlayer: isMarked,
+            patternName: `${line.name} (Línea)`,
+            patternType: "LINEA",
+            winningCells: line.cells,
+            missingOfficialNumbers: [],
+          };
+        }
       }
     }
 
-    // 2. Revisar si completó las 4 esquinas
+    // Si NO ha ganado 4 esquinas, revisar esquinas
     const corners: [number, number][] = [
       [0, 0],
       [0, 4],
@@ -437,12 +474,13 @@ export function validateTablePattern(
       .filter(([r, c]) => !isCellDrawn(r, c))
       .map(([r, c]) => grid[r][c]);
 
-    if (missingCorners.length === 0) {
+    if (!hasWonFigure("ESQUINAS") && missingCorners.length === 0) {
       const isMarked = corners.every(([r, c]) => isCellMarked(r, c));
       return {
         isValidOfficial: true,
         isMarkedByPlayer: isMarked,
-        patternName: "4 Esquinas (Línea o 4 Esquinas)",
+        patternName: "4 Esquinas Completas",
+        patternType: "ESQUINAS",
         winningCells: corners,
         missingOfficialNumbers: [],
       };
@@ -451,13 +489,20 @@ export function validateTablePattern(
     return {
       isValidOfficial: false,
       isMarkedByPlayer: false,
-      patternName: "Línea o 4 Esquinas",
+      patternName: hasWonFigure("ESQUINAS") && hasWonFigure("LINEA")
+        ? "Línea y 4 Esquinas (Ambas ya ganadas por este cartón)"
+        : hasWonFigure("ESQUINAS")
+        ? "Buscando Línea (4 Esquinas ya ganadas)"
+        : hasWonFigure("LINEA")
+        ? "Buscando 4 Esquinas (Línea ya ganada)"
+        : "Línea o 4 Esquinas",
+      patternType: !hasWonFigure("LINEA") ? "LINEA" : "ESQUINAS",
       winningCells: [],
       missingOfficialNumbers: missingCorners,
     };
   }
 
-  // 3-D. MODO: PUNTA O 4 ESQUINAS (Cualquiera de las dos que haga primero)
+  // 3-D. MODO: PUNTA O 4 ESQUINAS (Cualquiera de las dos que haga primero, o la que tenga pendiente)
   if (stage === "PUNTA_Y_ESQUINAS") {
     const cornersCoords: [number, number][] = [
       [0, 0],
@@ -469,41 +514,52 @@ export function validateTablePattern(
       .filter(([r, c]) => !isCellDrawn(r, c))
       .map(([r, c]) => grid[r][c]);
 
-    // Si tiene las 4 esquinas completas
-    if (missingCorners.length === 0) {
+    // Si NO ha ganado 4 esquinas y las tiene completas
+    if (!hasWonFigure("ESQUINAS") && missingCorners.length === 0) {
       const isMarked = cornersCoords.every(([r, c]) => isCellMarked(r, c));
       return {
         isValidOfficial: true,
         isMarkedByPlayer: isMarked,
         patternName: "4 Esquinas Completas",
+        patternType: "ESQUINAS",
         winningCells: cornersCoords,
         missingOfficialNumbers: [],
       };
     }
 
-    // Si tiene al menos una punta
-    const corners: { name: string; coord: [number, number] }[] = [
-      { name: "Punta Sup B", coord: [0, 0] },
-      { name: "Punta Sup O", coord: [0, 4] },
-      { name: "Punta Inf B", coord: [4, 0] },
-      { name: "Punta Inf O", coord: [4, 4] },
-    ];
-    const hitCorners = corners.filter(({ coord: [r, c] }) => isCellDrawn(r, c));
-    if (hitCorners.length > 0) {
-      const isMarked = hitCorners.some(({ coord: [r, c] }) => isCellMarked(r, c));
-      return {
-        isValidOfficial: true,
-        isMarkedByPlayer: isMarked,
-        patternName: hitCorners[0].name,
-        winningCells: [hitCorners[0].coord],
-        missingOfficialNumbers: [],
-      };
+    // Si NO ha ganado punta y tiene al menos una punta
+    if (!hasWonFigure("PUNTA")) {
+      const corners: { name: string; coord: [number, number] }[] = [
+        { name: "Punta Sup B", coord: [0, 0] },
+        { name: "Punta Sup O", coord: [0, 4] },
+        { name: "Punta Inf B", coord: [4, 0] },
+        { name: "Punta Inf O", coord: [4, 4] },
+      ];
+      const hitCorners = corners.filter(({ coord: [r, c] }) => isCellDrawn(r, c));
+      if (hitCorners.length > 0) {
+        const isMarked = hitCorners.some(({ coord: [r, c] }) => isCellMarked(r, c));
+        return {
+          isValidOfficial: true,
+          isMarkedByPlayer: isMarked,
+          patternName: hitCorners[0].name,
+          patternType: "PUNTA",
+          winningCells: [hitCorners[0].coord],
+          missingOfficialNumbers: [],
+        };
+      }
     }
 
     return {
       isValidOfficial: false,
       isMarkedByPlayer: false,
-      patternName: "Punta o 4 Esquinas",
+      patternName: hasWonFigure("ESQUINAS") && hasWonFigure("PUNTA")
+        ? "Punta y 4 Esquinas (Ambas ya ganadas por este cartón)"
+        : hasWonFigure("ESQUINAS")
+        ? "Buscando Punta (4 Esquinas ya ganadas)"
+        : hasWonFigure("PUNTA")
+        ? "Buscando 4 Esquinas (Punta ya ganada)"
+        : "Punta o 4 Esquinas",
+      patternType: !hasWonFigure("PUNTA") ? "PUNTA" : "ESQUINAS",
       winningCells: [],
       missingOfficialNumbers: missingCorners,
     };
@@ -519,14 +575,16 @@ export function validateTablePattern(
         }
       }
     }
-    const isValidOfficial = drawnCellsInTable.length >= 5;
+    const alreadyWon = hasWonFigure("BINGO_LOCO");
+    const isValidOfficial = !alreadyWon && drawnCellsInTable.length >= 5;
     const markedDrawnCells = drawnCellsInTable.filter(([r, c]) =>
       isCellMarked(r, c)
     );
     return {
       isValidOfficial,
       isMarkedByPlayer: markedDrawnCells.length >= 5,
-      patternName: `Bingo Loco (${drawnCellsInTable.length}/5 aciertos)`,
+      patternName: alreadyWon ? "Bingo Loco (Ya ganado por este cartón)" : `Bingo Loco (${drawnCellsInTable.length}/5 aciertos)`,
+      patternType: "BINGO_LOCO",
       winningCells: isValidOfficial ? drawnCellsInTable.slice(0, 5) : [],
       missingOfficialNumbers: [],
     };
@@ -542,23 +600,26 @@ export function validateTablePattern(
     }
   }
 
+  const isFullCard = tableIndex === 6 || stage === "LLENA";
   const letterTitle = TABLE_LETTERS[tableIndex]?.title || `Tabla #${tableIndex}`;
-  const patternLabel =
-    tableIndex === 6 || stage === "LLENA"
-      ? `Tabla #${tableIndex} Completa`
-      : `${letterTitle} Completa (Tabla #${tableIndex})`;
+  const patternLabel = isFullCard
+    ? `Tabla #${tableIndex} Completa`
+    : `${letterTitle} Completa (Tabla #${tableIndex})`;
+  const currentStageType: StageType = isFullCard ? "LLENA" : "LETRA";
+  const alreadyWon = hasWonFigure(currentStageType);
 
   const missingOfficial = requiredCells
     .filter(([r, c]) => !isCellDrawn(r, c))
     .map(([r, c]) => grid[r][c]);
 
-  const isValidOfficial = missingOfficial.length === 0;
+  const isValidOfficial = !alreadyWon && missingOfficial.length === 0;
   const isMarkedByPlayer = requiredCells.every(([r, c]) => isCellMarked(r, c));
 
   return {
     isValidOfficial,
     isMarkedByPlayer,
-    patternName: patternLabel,
+    patternName: alreadyWon ? `${patternLabel} (Ya ganada por este cartón)` : patternLabel,
+    patternType: currentStageType,
     winningCells: isValidOfficial ? requiredCells : [],
     missingOfficialNumbers: missingOfficial,
   };

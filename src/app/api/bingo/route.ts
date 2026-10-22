@@ -1392,6 +1392,7 @@ async function handlePostAction(req: NextRequest): Promise<NextResponse> {
           id: `WIN-${Date.now()}`,
           tableIndex: claim.tableIndex,
           stage: claim.stage,
+          patternType: claim.validation?.patternType || (claim.stage as StageType),
           prizeName: state.currentPrizeName,
           cardNumber: claim.cardNumber,
           buyerName: claim.buyerName,
@@ -1516,14 +1517,16 @@ async function handlePostAction(req: NextRequest): Promise<NextResponse> {
         targetState.tieBreak.winningHighNumber = best.drawnNumber;
         targetState.tieBreak.completedAt = new Date().toISOString();
 
+        const bestClaim = targetState.claims.find((c) => c.id === best.claimId);
         const record: WinnerRecord = {
           id: `WIN-${Date.now()}`,
           tableIndex: targetState.tieBreak.tableIndex,
           stage: targetState.tieBreak.stage,
+          patternType: bestClaim?.validation?.patternType || (targetState.tieBreak.stage as StageType),
           prizeName: targetState.tieBreak.prizeName,
           cardNumber: best.cardNumber,
           buyerName: best.buyerName,
-          patternName: `Desempate Al Número Mayor (Bolilla #${best.drawnNumber})`,
+          patternName: `Desempate Al Número Mayor (Bolilla #${best.drawnNumber}) - ${bestClaim?.validation?.patternName || targetState.tieBreak.stage}`,
           wonViaTieBreak: true,
           highBallNumber: best.drawnNumber,
           confirmedAt: new Date().toISOString(),

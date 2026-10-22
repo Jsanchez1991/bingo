@@ -234,6 +234,7 @@ export interface WinnerRecord {
   id: string;
   tableIndex: number;
   stage: StageType;
+  patternType?: StageType;
   prizeName: string;
   cardNumber: string;
   buyerName: string;
@@ -1204,6 +1205,7 @@ export function findEventBySelectionCode(selectionCode: string): {
 
 /**
  * Envía a verificación una tabla específica (`cardNumber` + `tableIndex`) de un comprador.
+ * Permite que una tabla que ya ganó una figura (ej. Punta) siga participando para las otras (ej. Línea o Tabla Llena).
  */
 export function submitPlayerClaim(
   tokenOrCardNumber: string,
@@ -1223,25 +1225,15 @@ export function submitPlayerClaim(
     return { ok: false, message: "Cartón no encontrado." };
   }
 
-  const existing = state.claims.find(
-    (cl) =>
-      cl.cardNumber === card.cardNumber &&
-      cl.tableIndex === tableIndex &&
-      cl.stage === state.activeStage
-  );
-  if (existing) {
-    return {
-      ok: true,
-      message: `El Cartón #${card.cardNumber} (Tabla #${tableIndex}) ya fue enviado para verificación en esta etapa.`,
-      claim: existing,
-      eventId: state.eventId,
-    };
-  }
-
   const tableObj = card.tables.find((t) => t.tableIndex === tableIndex);
   if (!tableObj) {
     return { ok: false, message: "Tabla inválida." };
   }
+
+  // Figuras que esta tabla YA ganó en el historial de ganadores
+  const alreadyWonPatterns: StageType[] = (state.winnersHistory || [])
+    .filter((w) => w.cardNumber === card.cardNumber && w.tableIndex === tableIndex)
+    .map((w) => w.patternType || w.stage);
 
   const markedNumbers = card.markedByTable[String(tableIndex)] || [];
   const validation = validateTablePattern(
@@ -1249,8 +1241,37 @@ export function submitPlayerClaim(
     tableIndex,
     state.activeStage,
     state.drawnBalls,
-    markedNumbers
+    markedNumbers,
+    alreadyWonPatterns
   );
+
+  const targetPatternType: StageType = validation.patternType || state.activeStage;
+
+  // Si ya tiene un reclamo PENDIENTE sin revisar para esta misma figura, evitar reenvíos innecesarios
+  const existingPending = state.claims.find(
+    (cl) =>
+      cl.cardNumber === card.cardNumber &&
+      cl.tableIndex === tableIndex &&
+      (cl.validation?.patternType === targetPatternType || cl.stage === state.activeStage) &&
+      cl.status === "PENDIENTE"
+  );
+  if (existingPending) {
+    return {
+      ok: true,
+      message: `El Cartón #${card.cardNumber} (Tabla #${tableIndex}) ya está en revisión para esta figura (${existingPending.validation.patternName}).`,
+      claim: existingPending,
+      eventId: state.eventId,
+    };
+  }
+
+  // Si la figura ya fue ganada por este mismo cartón
+  if (alreadyWonPatterns.includes(targetPatternType)) {
+    return {
+      ok: false,
+      message: `Este Cartón #${card.cardNumber} ya ganó el premio de ${validation.patternName}. Sigue participando por las demás figuras de esta tabla.`,
+      eventId: state.eventId,
+    };
+  }
 
   const newClaim: BingoClaim = {
     id: `BINGO-${String(state.claims.length + 1).padStart(3, "0")}`,
@@ -1277,7 +1298,7 @@ export function submitPlayerClaim(
 
   return {
     ok: true,
-    message: `¡Cartón #${card.cardNumber} (Tabla #${tableIndex}) enviado al organizador!`,
+    message: `¡Cartón #${card.cardNumber} (Tabla #${tableIndex}) enviado al organizador para ${validation.patternName}!`,
     claim: newClaim,
     eventId: state.eventId,
   };

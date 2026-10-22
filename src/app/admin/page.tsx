@@ -170,6 +170,7 @@ export default function AdminOrganizerPage() {
   const announcedClaimIdsRef = useRef<Set<string>>(new Set());
   const isFirstFetchRef = useRef<boolean>(true);
   const activeEventIdRef = useRef<string | null>(null);
+  const pendingBallActionsRef = useRef<{ added: Set<number>; removed: Set<number> }>({ added: new Set(), removed: new Set() });
 
   // Estado del formulario de Personalización del Cartón y Premios de las 6 Tablas
   const [showCustomizeForm, setShowCustomizeForm] = useState<boolean>(false);
@@ -230,6 +231,24 @@ export default function AdminOrganizerPage() {
         isFirstFetchRef.current = false;
       }
 
+      // Fusionar bolillas marcadas recientemente para que no parpadeen ni se despinten
+      let mergedDrawn = [...newState.drawnBalls];
+      pendingBallActionsRef.current.added.forEach((b: number) => {
+        if (mergedDrawn.includes(b)) {
+          pendingBallActionsRef.current.added.delete(b);
+        } else {
+          mergedDrawn.push(b);
+        }
+      });
+      pendingBallActionsRef.current.removed.forEach((b: number) => {
+        if (!mergedDrawn.includes(b)) {
+          pendingBallActionsRef.current.removed.delete(b);
+        } else {
+          mergedDrawn = mergedDrawn.filter((x) => x !== b);
+        }
+      });
+      newState = { ...newState, drawnBalls: mergedDrawn };
+
       setGameState(newState);
       setEventsList(allEvents);
       setPrizeInput(newState.currentPrizeName);
@@ -268,6 +287,8 @@ export default function AdminOrganizerPage() {
       setLimitErrorMsg(null);
     }
     if (data.state) {
+      pendingBallActionsRef.current.added.clear();
+      pendingBallActionsRef.current.removed.clear();
       activeEventIdRef.current = data.state.eventId;
       setGameState(data.state);
       setPrizeInput(data.state.currentPrizeName);
@@ -436,6 +457,14 @@ export default function AdminOrganizerPage() {
     setTogglingBall(ballNum);
 
     const wasAlreadyDrawn = drawnSet.has(ballNum);
+    if (wasAlreadyDrawn) {
+      pendingBallActionsRef.current.removed.add(ballNum);
+      pendingBallActionsRef.current.added.delete(ballNum);
+    } else {
+      pendingBallActionsRef.current.added.add(ballNum);
+      pendingBallActionsRef.current.removed.delete(ballNum);
+    }
+
     // Actualización optimista local inmediata para que la bolilla no parpadee ni se desmarque
     setGameState((prev) => {
       if (!prev) return prev;
@@ -465,6 +494,9 @@ export default function AdminOrganizerPage() {
     if (remaining.length === 0) return;
     const picked = remaining[Math.floor(Math.random() * remaining.length)];
     setTogglingBall(picked);
+
+    pendingBallActionsRef.current.added.add(picked);
+    pendingBallActionsRef.current.removed.delete(picked);
 
     setGameState((prev) => {
       if (!prev) return prev;
@@ -1418,6 +1450,36 @@ export default function AdminOrganizerPage() {
                   </div>
                 </div>
               </div>
+
+              {/* Ganadores ya registrados en esta Tabla */}
+              {(() => {
+                const winnersThisTable = (gameState.winnersHistory || []).filter(
+                  (w) => w.tableIndex === gameState.activeTable
+                );
+                if (winnersThisTable.length === 0) return null;
+                return (
+                  <div className="mb-4 bg-emerald-950/70 border-2 border-emerald-500 rounded-2xl p-3.5 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-black uppercase text-emerald-400">
+                        🏆 GANADORES CONFIRMADOS EN TABLA #{gameState.activeTable}:
+                      </span>
+                      <span className="text-xs text-slate-300 font-bold">
+                        Esta tabla sigue activa para las demás figuras
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {winnersThisTable.map((w) => (
+                        <span
+                          key={w.id}
+                          className="bg-emerald-600 text-white font-black text-xs px-2.5 py-1 rounded-xl shadow"
+                        >
+                          🎉 {w.buyerName} (Cartón #{w.cardNumber}) — {w.patternName}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
 
               {validCurrentClaims.length >= 2 && (
                 <div className="mb-4 bg-gradient-to-r from-amber-500/20 to-orange-500/20 border-2 border-amber-400 rounded-2xl p-4">
