@@ -495,11 +495,13 @@ export async function syncToSupabase(db?: SaasDatabase, specificEventId?: string
   const payload = db || memoryCacheDb;
   if (!creds || !payload) return;
   try {
-    // 1. Si se actualizó un evento específico (ej. bolillero, cambio de etapa)
-    const targetEventId = specificEventId || payload.activeDefaultEventId;
-    const targetEvent = payload.events[targetEventId];
+    // 1. Guardar todos los eventos modificados en las tablas relacionales
+    const eventsToSync = specificEventId && payload.events[specificEventId]
+      ? [payload.events[specificEventId]]
+      : Object.values(payload.events);
 
-    if (targetEvent) {
+    for (const targetEvent of eventsToSync) {
+      if (!targetEvent) continue;
       await supabase.from("events").upsert({
         id: targetEvent.eventId,
         organizer_id: targetEvent.organizerId,
@@ -522,7 +524,7 @@ export async function syncToSupabase(db?: SaasDatabase, specificEventId?: string
         updated_at: new Date().toISOString(),
       });
 
-      // Sincronizar también cartones si se crearon o actualizaron
+      // Sincronizar también cartones si existen
       if (targetEvent.cards && targetEvent.cards.length > 0) {
         const cardsChunk = targetEvent.cards.slice(0, 100).map((c) => ({
           id: `${targetEvent.eventId}_${c.cardNumber}`,
