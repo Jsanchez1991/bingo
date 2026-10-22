@@ -22,6 +22,7 @@ import {
   announceBallVoice,
   announceCustomVoice,
 } from "@/lib/bingo-audio";
+import { supabase } from "@/lib/supabase-client";
 import {
   getSaasSession,
   setSaasSession,
@@ -264,9 +265,42 @@ export default function AdminOrganizerPage() {
 
   useEffect(() => {
     fetchState();
-    const interval = setInterval(fetchState, 1500);
-    return () => clearInterval(interval);
-  }, [fetchState]);
+
+    // Suscripción Realtime para alertas instantáneas de ¡BINGO!
+    const channel = supabase
+      .channel("public:claims:admin")
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "claims",
+        },
+        (payload: any) => {
+          if (payload.new) {
+            const cl = payload.new;
+            if (!announcedClaimIdsRef.current.has(cl.id)) {
+              announcedClaimIdsRef.current.add(cl.id);
+              announceCustomVoice(
+                `¡Atención! ¡Bingo cantado en el Cartón número ${Number(
+                  cl.card_number
+                )} de ${cl.buyer_name}!`,
+                soundEnabled
+              );
+            }
+            fetchState();
+          }
+        }
+      )
+      .subscribe();
+
+    // Sondeo de respaldo relajado a 4 segundos (en lugar de 1.5s)
+    const interval = setInterval(fetchState, 4000);
+    return () => {
+      clearInterval(interval);
+      supabase.removeChannel(channel);
+    };
+  }, [fetchState, soundEnabled]);
 
   const postAction = async (payload: Record<string, unknown>) => {
     const currentSession = getSaasSession();

@@ -1281,6 +1281,21 @@ async function handlePostAction(req: NextRequest): Promise<NextResponse> {
       });
     }
 
+    // 4.1 Sincronización en lote de marcas (Batch) cuando se presiona pintar salidas
+    if (action === "SYNC_SHEET_MARKS") {
+      const { token, cardNumber, tableIndex, markedNumbers } = body;
+      const found = findEventByCardToken(token || cardNumber);
+      const targetState = found ? found.state : state;
+      const card = targetState.cards.find((c) =>
+        cardNumber ? c.cardNumber === cardNumber : c.secretToken === token || c.cardNumber === token
+      );
+      if (card && Array.isArray(markedNumbers)) {
+        card.markedByTable[String(tableIndex)] = markedNumbers.map(Number);
+        writeGameState(targetState, targetState.eventId);
+      }
+      return NextResponse.json({ ok: true });
+    }
+
     // 5. Jugador envía "¡BINGO! Enviar Verificación" de una hoja específica (`cardNumber`)
     if (action === "SUBMIT_CLAIM") {
       const { token, cardNumber, tableIndex } = body;

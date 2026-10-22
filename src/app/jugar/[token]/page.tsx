@@ -21,6 +21,7 @@ import {
   announceCustomVoice,
   playDaubPop,
 } from "@/lib/bingo-audio";
+import { supabase } from "@/lib/supabase-client";
 
 export default function PlayerBingoPage() {
   const params = useParams();
@@ -170,9 +171,50 @@ export default function PlayerBingoPage() {
   useEffect(() => {
     if (!deviceId) return;
     fetchLiveState();
-    const timer = setInterval(fetchLiveState, 1500);
-    return () => clearInterval(timer);
-  }, [deviceId, fetchLiveState]);
+
+    // Sincronización en tiempo real vía WebSockets (Supabase Realtime)
+    // Cuando el administrador canta una bolilla, se actualiza al instante sin saturar con HTTP
+    const channel = supabase
+      .channel("public:events:player")
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "events",
+        },
+        (payload: any) => {
+          if (payload.new) {
+            setGameState((prev) => {
+              if (!prev || prev.eventId !== payload.new.id) return prev;
+              const newDrawn = payload.new.drawn_balls || [];
+              const lastBall = newDrawn.length > 0 ? newDrawn[newDrawn.length - 1] : null;
+              if (lastBall !== null && lastBall !== prevLastBallRef.current) {
+                announceBallVoice(lastBall, soundEnabled);
+                prevLastBallRef.current = lastBall;
+              }
+              return {
+                ...prev,
+                activeTable: payload.new.active_table,
+                activeStage: payload.new.active_stage,
+                currentPrizeName: payload.new.current_prize_name,
+                drawnBalls: newDrawn,
+                isPausedForVerification: payload.new.is_paused_for_verification,
+                status: payload.new.status,
+              };
+            });
+          }
+        }
+      )
+      .subscribe();
+
+    // Sondeo de respaldo relajado a 5 segundos (en lugar de 1.5s) para liberar la red del celular
+    const timer = setInterval(fetchLiveState, 5000);
+    return () => {
+      clearInterval(timer);
+      supabase.removeChannel(channel);
+    };
+  }, [deviceId, fetchLiveState, soundEnabled]);
 
   const handleToggleNumber = async (
     cardNumber: string,
@@ -230,22 +272,68 @@ export default function PlayerBingoPage() {
   };
 
   // Pintar automáticamente las bolillas salidas en TODAS las tablas abiertas de ese número de juego
+  // Optimizado: actualiza todo localmente primero y envía una sola petición al servidor para evitar bloqueos
   const handleAutoPaintGameAcrossAllSheets = async (tableIndex: number) => {
     if (!gameState || playerCards.length === 0) return;
     const drawnSet = new Set(gameState.drawnBalls);
+    const key = String(tableIndex);
 
-    for (const c of playerCards) {
+    if (soundEnabled) playDaubPop();
+
+    let didUpdate = false;
+    const updatedCards = playerCards.map((c) => {
       const tableObj = c.tables.find((t) => t.tableIndex === tableIndex);
-      if (!tableObj) continue;
-      const currentMarked = new Set(c.markedByTable[String(tableIndex)] || []);
+      if (!tableObj) return c;
+
+      const currentList = c.markedByTable[key] || [];
+      const markedSet = new Set(currentList);
+      const toAdd: number[] = [];
+
       for (let r = 0; r < 5; r++) {
         for (let col = 0; col < 5; col++) {
           const val = tableObj.grid[r][col];
-          if (val > 0 && drawnSet.has(val) && !currentMarked.has(val)) {
-            await handleToggleNumber(c.cardNumber, tableIndex, val);
+          if (val > 0 && drawnSet.has(val) && !markedSet.has(val)) {
+            toAdd.push(val);
           }
         }
       }
+
+      if (toAdd.length > 0) {
+        didUpdate = true;
+        const nextList = [...currentList, ...toAdd];
+        toAdd.forEach((num) => {
+          pendingMarksRef.current.set(`${c.cardNumber}_${tableIndex}_${num}`, {
+            marked: true,
+            timestamp: Date.now(),
+          });
+        });
+        return {
+          ...c,
+          markedByTable: {
+            ...c.markedByTable,
+            [key]: nextList,
+          },
+        };
+      }
+      return c;
+    });
+
+    if (!didUpdate) return;
+    setPlayerCards(updatedCards);
+
+    // Enviar una sola actualización en segundo plano por cada hoja que cambió
+    for (const c of updatedCards) {
+      fetch("/api/bingo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "SYNC_SHEET_MARKS",
+          token,
+          cardNumber: c.cardNumber,
+          tableIndex,
+          markedNumbers: c.markedByTable[key] || [],
+        }),
+      }).catch(() => {});
     }
   };
 

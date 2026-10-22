@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 import crypto from "crypto";
+import { supabase } from "./supabase-client";
 import {
   StageType,
   validateTablePattern,
@@ -288,6 +289,7 @@ const DATA_DIR = path.join(process.cwd(), "data");
 const DB_PATH = path.join(DATA_DIR, "bingo-db.json");
 
 let memoryCacheDb: SaasDatabase | null = null;
+let lastMemoryCacheTime = 0;
 let supabaseLoadedOnce = false;
 
 function getSupabaseCredentials(): { url: string; key: string } | null {
@@ -309,12 +311,151 @@ function getSupabaseCredentials(): { url: string; key: string } | null {
 
 /**
  * Sincroniza el estado desde Supabase hacia la caché en memoria y archivo local.
- * Protegido contra sobreescrituras: NUNCA sobreescribe datos locales más recientes.
+ * Prioriza las tablas relacionales optimizadas (organizers, events, cards, claims).
  */
 export async function syncFromSupabase(): Promise<void> {
   const creds = getSupabaseCredentials();
-  if (!creds) return; // Si no hay credenciales en .env, usa exclusivamente la base local (rápida y persistente)
+  if (!creds) return;
   try {
+    // Si ya cargó en memoria recientemente (en los últimos 3 segundos), no spamear Supabase
+    const now = Date.now();
+    if (memoryCacheDb && (now - lastMemoryCacheTime < 3000)) {
+      return;
+    }
+
+    // Intentar leer de las nuevas tablas relacionales optimizadas
+    const [orgsRes, eventsRes, cardsRes, claimsRes, sellersRes] = await Promise.all([
+      supabase.from("organizers").select("*"),
+      supabase.from("events").select("*"),
+      supabase.from("cards").select("*"),
+      supabase.from("claims").select("*"),
+      supabase.from("event_sellers").select("*"),
+    ]);
+
+    if (
+      !orgsRes.error &&
+      !eventsRes.error &&
+      eventsRes.data &&
+      eventsRes.data.length > 0
+    ) {
+      const organizers: SaasOrganizer[] = orgsRes.data.map((o: any) => ({
+        id: o.id,
+        name: o.name,
+        organizationName: o.organization_name,
+        email: o.email,
+        phone: o.phone,
+        accessCode: o.access_code,
+        planId: o.plan_id,
+        status: o.status,
+        totalPaidUsd: Number(o.total_paid_usd || 0),
+        createdAt: o.created_at,
+      }));
+
+      const eventsMap: Record<string, BingoGameState> = {};
+
+      for (const ev of eventsRes.data) {
+        const evCards: BingoCardSheet[] = (cardsRes.data || [])
+          .filter((c: any) => c.event_id === ev.id)
+          .map((c: any) => ({
+            id: c.card_number,
+            cardNumber: c.card_number,
+            secretToken: c.secret_token,
+            buyerName: c.buyer_name || "",
+            buyerPhone: c.buyer_phone || "",
+            createdAt: c.created_at,
+            tables: c.tables_data || [],
+            markedByTable: c.marked_by_table || { "1": [], "2": [], "3": [], "4": [], "5": [], "6": [] },
+            sessionLock: c.session_lock || null,
+            eventId: c.event_id,
+            status: c.status || "DISPONIBLE",
+            assignedSellerId: c.assigned_seller_id,
+            soldBySellerId: c.sold_by_seller_id,
+            soldBySellerName: c.sold_by_seller_name,
+          }));
+
+        const evClaims: BingoClaim[] = (claimsRes.data || [])
+          .filter((cl: any) => cl.event_id === ev.id)
+          .map((cl: any) => ({
+            id: cl.id,
+            cardNumber: cl.card_number,
+            secretToken: cl.secret_token,
+            buyerName: cl.buyer_name,
+            tableIndex: cl.table_index,
+            stage: cl.stage,
+            claimedAt: cl.claimed_at,
+            ballCountAtClaim: cl.ball_count_at_claim,
+            lastBallAtClaim: cl.last_ball_at_claim,
+            markedNumbers: cl.marked_numbers || [],
+            gridSnapshot: cl.grid_snapshot || [],
+            validation: cl.validation || {},
+            status: cl.status,
+            organizerNote: cl.organizer_note,
+          }));
+
+        const evSellers: EventSeller[] = (sellersRes.data || [])
+          .filter((s: any) => s.event_id === ev.id)
+          .map((s: any) => ({
+            id: s.id,
+            sellerCode: s.seller_code,
+            name: s.name,
+            phone: s.phone,
+            commissionPercent: Number(s.commission_percent || 10),
+            active: s.active,
+            createdAt: s.created_at,
+          }));
+
+        eventsMap[ev.id] = {
+          eventId: ev.id,
+          organizerId: ev.organizer_id,
+          status: ev.status,
+          event: {
+            title: ev.title,
+            organizedBy: ev.organized_by || "",
+            address: ev.address || "",
+            note: ev.note || "",
+            dateTimeText: ev.date_time_text || "",
+            phones: ev.phones || "",
+            priceText: ev.price_text || "$2.00",
+            prizesByTable: ev.prizes_by_table || {},
+            prizesByTableStage: ev.prizes_by_table_stage || {},
+          },
+          activeTable: ev.active_table || 1,
+          activeStage: ev.active_stage || "LETRA",
+          currentPrizeName: ev.current_prize_name || "",
+          drawnBalls: ev.drawn_balls || [],
+          isPausedForVerification: ev.is_paused_for_verification || false,
+          cards: evCards,
+          claims: evClaims,
+          tieBreak: null,
+          winnersHistory: [],
+          sellers: evSellers,
+          pregeneratedPoolSize: ev.pregenerated_pool_size || evCards.length,
+          updatedAt: ev.updated_at,
+        };
+      }
+
+      const activeDefaultEventId = eventsRes.data[0]?.id || "evt-solidario-01";
+      const remoteDb: SaasDatabase = {
+        version: 2,
+        activeDefaultEventId,
+        organizers,
+        events: eventsMap,
+        updatedAt: new Date().toISOString(),
+      };
+
+      memoryCacheDb = remoteDb;
+      lastMemoryCacheTime = Date.now();
+      supabaseLoadedOnce = true;
+      try {
+        if (!fs.existsSync(DATA_DIR)) {
+          fs.mkdirSync(DATA_DIR, { recursive: true });
+        }
+        fs.writeFileSync(DB_PATH, JSON.stringify(remoteDb, null, 2), "utf-8");
+      } catch {}
+      return;
+    }
+
+    // Fallback de retrocompatibilidad con la tabla monolítica si aún no hubiera datos relacionales
     const res = await fetch(
       `${creds.url}/rest/v1/bingo_store?id=eq.main&select=payload,updated_at`,
       {
@@ -331,40 +472,59 @@ export async function syncFromSupabase(): Promise<void> {
     const rows = await res.json();
     if (Array.isArray(rows) && rows.length > 0 && rows[0].payload) {
       const remoteDb = rows[0].payload as SaasDatabase;
-      const remoteUpdatedAt = new Date(rows[0].updated_at || remoteDb.updatedAt || 0).getTime();
-      const currentLocal = readSaasDb();
-      const localUpdatedAt = new Date(currentLocal.updatedAt || 0).getTime();
-
-      // Solo actualizar si la copia remota es estrictamente más nueva que la local
-      if (remoteUpdatedAt > localUpdatedAt || !supabaseLoadedOnce) {
-        if (remoteDb && remoteDb.events && remoteDb.organizers) {
-          memoryCacheDb = remoteDb;
-          supabaseLoadedOnce = true;
-          try {
-            if (!fs.existsSync(DATA_DIR)) {
-              fs.mkdirSync(DATA_DIR, { recursive: true });
-            }
-            fs.writeFileSync(DB_PATH, JSON.stringify(remoteDb, null, 2), "utf-8");
-          } catch {}
-        }
+      if (remoteDb && remoteDb.events && remoteDb.organizers) {
+        memoryCacheDb = remoteDb;
+        lastMemoryCacheTime = Date.now();
+        supabaseLoadedOnce = true;
+        try {
+          if (!fs.existsSync(DATA_DIR)) {
+            fs.mkdirSync(DATA_DIR, { recursive: true });
+          }
+          fs.writeFileSync(DB_PATH, JSON.stringify(remoteDb, null, 2), "utf-8");
+        } catch {}
       }
-    } else if (Array.isArray(rows) && rows.length === 0 && !supabaseLoadedOnce) {
-      supabaseLoadedOnce = true;
-      const initial = readSaasDb();
-      await syncToSupabase(initial);
     }
   } catch {}
 }
 
 /**
- * Guarda la base de datos completa en Supabase (`bingo_store`).
+ * Guarda y actualiza entidades específicas en las tablas relacionales de Supabase.
  */
-export async function syncToSupabase(db?: SaasDatabase): Promise<void> {
+export async function syncToSupabase(db?: SaasDatabase, specificEventId?: string): Promise<void> {
   const creds = getSupabaseCredentials();
   const payload = db || memoryCacheDb;
   if (!creds || !payload) return;
   try {
-    await fetch(`${creds.url}/rest/v1/bingo_store`, {
+    // 1. Si se actualizó un evento específico (ej. bolillero, cambio de etapa)
+    const targetEventId = specificEventId || payload.activeDefaultEventId;
+    const targetEvent = payload.events[targetEventId];
+
+    if (targetEvent) {
+      await supabase.from("events").upsert({
+        id: targetEvent.eventId,
+        organizer_id: targetEvent.organizerId,
+        status: targetEvent.status,
+        title: targetEvent.event.title,
+        organized_by: targetEvent.event.organizedBy,
+        address: targetEvent.event.address,
+        note: targetEvent.event.note,
+        date_time_text: targetEvent.event.dateTimeText,
+        phones: targetEvent.event.phones,
+        price_text: targetEvent.event.priceText,
+        active_table: targetEvent.activeTable,
+        active_stage: targetEvent.activeStage,
+        current_prize_name: targetEvent.currentPrizeName,
+        drawn_balls: targetEvent.drawnBalls,
+        is_paused_for_verification: targetEvent.isPausedForVerification,
+        prizes_by_table: targetEvent.event.prizesByTable,
+        prizes_by_table_stage: targetEvent.event.prizesByTableStage,
+        pregenerated_pool_size: targetEvent.pregeneratedPoolSize || targetEvent.cards.length,
+        updated_at: new Date().toISOString(),
+      });
+    }
+
+    // 2. Mantener también la tabla de respaldo monolítica por seguridad sin bloquear
+    fetch(`${creds.url}/rest/v1/bingo_store`, {
       method: "POST",
       headers: {
         apikey: creds.key,
@@ -378,10 +538,8 @@ export async function syncToSupabase(db?: SaasDatabase): Promise<void> {
         updated_at: new Date().toISOString(),
       }),
       cache: "no-store",
-    });
-  } catch {
-    // Continúa sin interrumpir la petición
-  }
+    }).catch(() => {});
+  } catch {}
 }
 
 export function parsePriceUsd(priceText: string): number {
