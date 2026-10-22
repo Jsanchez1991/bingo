@@ -291,26 +291,29 @@ let memoryCacheDb: SaasDatabase | null = null;
 let supabaseLoadedOnce = false;
 
 function getSupabaseCredentials(): { url: string; key: string } | null {
+  // Solo activar Supabase si se definen explícitamente las variables de entorno
   const url = (
     process.env.NEXT_PUBLIC_SUPABASE_URL ||
     process.env.SUPABASE_URL ||
-    "https://chmkdhdihafegzhdihnm.supabase.co"
-  ).replace(/\/$/, "");
-  const key =
+    ""
+  ).replace(/\/$/, "").trim();
+  const key = (
     process.env.SUPABASE_SERVICE_ROLE_KEY ||
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-    "sb_publishable_RGg6IQZyuGEsJ-gUQykXHQ_ppOGWDr6";
+    ""
+  ).trim();
   if (!url || !key) return null;
   return { url, key };
 }
 
 /**
  * Sincroniza el estado desde Supabase hacia la caché en memoria y archivo local.
+ * Protegido contra sobreescrituras: NUNCA sobreescribe datos locales más recientes.
  */
 export async function syncFromSupabase(): Promise<void> {
   const creds = getSupabaseCredentials();
-  if (!creds) return;
+  if (!creds) return; // Si no hay credenciales en .env, usa exclusivamente la base local (rápida y persistente)
   try {
     const res = await fetch(
       `${creds.url}/rest/v1/bingo_store?id=eq.main&select=payload,updated_at`,
@@ -328,27 +331,29 @@ export async function syncFromSupabase(): Promise<void> {
     const rows = await res.json();
     if (Array.isArray(rows) && rows.length > 0 && rows[0].payload) {
       const remoteDb = rows[0].payload as SaasDatabase;
-      if (remoteDb && remoteDb.events && remoteDb.organizers) {
-        memoryCacheDb = remoteDb;
-        supabaseLoadedOnce = true;
-        try {
-          if (!fs.existsSync(DATA_DIR)) {
-            fs.mkdirSync(DATA_DIR, { recursive: true });
-          }
-          fs.writeFileSync(DB_PATH, JSON.stringify(remoteDb, null, 2), "utf-8");
-        } catch {
-          // En Vercel el sistema de archivos es de solo lectura; ignoramos
+      const remoteUpdatedAt = new Date(rows[0].updated_at || remoteDb.updatedAt || 0).getTime();
+      const currentLocal = readSaasDb();
+      const localUpdatedAt = new Date(currentLocal.updatedAt || 0).getTime();
+
+      // Solo actualizar si la copia remota es estrictamente más nueva que la local
+      if (remoteUpdatedAt > localUpdatedAt || !supabaseLoadedOnce) {
+        if (remoteDb && remoteDb.events && remoteDb.organizers) {
+          memoryCacheDb = remoteDb;
+          supabaseLoadedOnce = true;
+          try {
+            if (!fs.existsSync(DATA_DIR)) {
+              fs.mkdirSync(DATA_DIR, { recursive: true });
+            }
+            fs.writeFileSync(DB_PATH, JSON.stringify(remoteDb, null, 2), "utf-8");
+          } catch {}
         }
       }
     } else if (Array.isArray(rows) && rows.length === 0 && !supabaseLoadedOnce) {
-      // Si la tabla existe en Supabase pero está vacía, sembramos los datos iniciales
       supabaseLoadedOnce = true;
       const initial = readSaasDb();
       await syncToSupabase(initial);
     }
-  } catch {
-    // Si la tabla aún no ha sido creada o no hay red, continúa con archivo/memoria
-  }
+  } catch {}
 }
 
 /**
@@ -1111,6 +1116,10 @@ export function writeSaasDb(db: SaasDatabase): SaasDatabase {
     fs.writeFileSync(DB_PATH, JSON.stringify(db, null, 2), "utf-8");
   } catch {
     // En entornos serverless (Vercel) el sistema de archivos es read-only
+  }
+  // Si hay credenciales de Supabase configuradas, sincronizar en segundo plano
+  if (getSupabaseCredentials()) {
+    syncToSupabase(db).catch(() => {});
   }
   return db;
 }
