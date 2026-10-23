@@ -544,6 +544,32 @@ export async function syncToSupabase(db?: SaasDatabase, specificEventId?: string
         }));
         await supabase.from("cards").upsert(cardsChunk);
       }
+
+      // Sincronizar los reclamos (claims) en la tabla relacional de Supabase para que persistan
+      if (targetEvent.claims) {
+        if (targetEvent.claims.length === 0) {
+          await supabase.from("claims").delete().eq("event_id", targetEvent.eventId);
+        } else {
+          const claimsPayload = targetEvent.claims.map((cl) => ({
+            id: cl.id,
+            event_id: targetEvent.eventId,
+            card_number: cl.cardNumber,
+            secret_token: cl.secretToken,
+            buyer_name: cl.buyerName,
+            table_index: cl.tableIndex,
+            stage: cl.stage,
+            claimed_at: cl.claimedAt,
+            ball_count_at_claim: cl.ballCountAtClaim,
+            last_ball_at_claim: cl.lastBallAtClaim,
+            marked_numbers: cl.markedNumbers,
+            grid_snapshot: cl.gridSnapshot,
+            validation: cl.validation,
+            status: cl.status,
+            organizer_note: cl.organizerNote || null,
+          }));
+          await supabase.from("claims").upsert(claimsPayload);
+        }
+      }
     }
 
     // 2. Mantener también la tabla de respaldo monolítica por seguridad sin bloquear
@@ -1463,8 +1489,9 @@ export function submitPlayerClaim(
     };
   }
 
+  const claimId = `BINGO-${Date.now().toString().slice(-6)}`;
   const newClaim: BingoClaim = {
-    id: `BINGO-${String(state.claims.length + 1).padStart(3, "0")}`,
+    id: claimId,
     cardNumber: card.cardNumber,
     secretToken: card.secretToken,
     buyerName: card.buyerName,
@@ -1485,6 +1512,29 @@ export function submitPlayerClaim(
   state.claims.unshift(newClaim);
   state.isPausedForVerification = true;
   writeGameState(state, state.eventId);
+
+  // Inserción directa e inmediata en Supabase para persistencia y activación de Realtime
+  Promise.resolve(
+    supabase
+      .from("claims")
+      .upsert({
+        id: newClaim.id,
+        event_id: state.eventId,
+        card_number: newClaim.cardNumber,
+        secret_token: newClaim.secretToken,
+        buyer_name: newClaim.buyerName,
+        table_index: newClaim.tableIndex,
+        stage: newClaim.stage,
+        claimed_at: newClaim.claimedAt,
+        ball_count_at_claim: newClaim.ballCountAtClaim,
+        last_ball_at_claim: newClaim.lastBallAtClaim,
+        marked_numbers: newClaim.markedNumbers,
+        grid_snapshot: newClaim.gridSnapshot,
+        validation: newClaim.validation,
+        status: newClaim.status,
+        organizer_note: null,
+      })
+  ).catch(() => {});
 
   return {
     ok: true,

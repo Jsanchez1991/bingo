@@ -1385,6 +1385,7 @@ async function handlePostAction(req: NextRequest): Promise<NextResponse> {
           state.isPausedForVerification = false;
         }
         writeGameState(state, state.eventId);
+        await supabase.from("claims").delete().eq("id", claimId);
         return NextResponse.json({ ok: true, state });
       }
 
@@ -1392,6 +1393,7 @@ async function handlePostAction(req: NextRequest): Promise<NextResponse> {
       if (claim) {
         claim.status = status;
         writeGameState(state, state.eventId);
+        await supabase.from("claims").update({ status }).eq("id", claimId);
       }
       return NextResponse.json({ ok: true, state });
     }
@@ -1400,7 +1402,13 @@ async function handlePostAction(req: NextRequest): Promise<NextResponse> {
     if (action === "CLEAR_STAGE_CLAIMS" || action === "CLEAR_ALL_CLAIMS") {
       if (action === "CLEAR_ALL_CLAIMS") {
         state.claims = [];
+        await supabase.from("claims").delete().eq("event_id", state.eventId);
       } else {
+        const removedClaims = state.claims.filter(
+          (c) =>
+            c.tableIndex === state.activeTable &&
+            c.stage === state.activeStage
+        );
         state.claims = state.claims.filter(
           (c) =>
             !(
@@ -1408,6 +1416,9 @@ async function handlePostAction(req: NextRequest): Promise<NextResponse> {
               c.stage === state.activeStage
             )
         );
+        for (const rc of removedClaims) {
+          await supabase.from("claims").delete().eq("id", rc.id);
+        }
       }
       state.isPausedForVerification = false;
       state.tieBreak = null;
