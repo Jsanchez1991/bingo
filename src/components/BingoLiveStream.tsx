@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState } from "react";
 import {
   LiveKitRoom,
   RoomAudioRenderer,
@@ -87,8 +87,8 @@ export default function BingoLiveStream({
             Cámara Oficial del Bolillero en Vivo
           </h3>
           <p className="text-slate-300 text-sm sm:text-base max-w-lg mx-auto mt-2 leading-relaxed">
-            Transmite el bolillero físico o digital directamente desde esta pantalla.
-            Tus jugadores verán cada bolilla salir en tiempo real sin salir de su cartón digital.
+            Transmite la cámara de tu bolillero o comparte la pantalla con el sorteo digital.
+            Tus jugadores verán cada bolilla en tiempo real sin salir de su cartón digital.
           </p>
         </div>
 
@@ -164,12 +164,13 @@ function VideoStage({
   const participants = useParticipants();
   const tracks = useTracks([
     { source: Track.Source.Camera, withPlaceholder: true },
+    { source: Track.Source.ScreenShare, withPlaceholder: false },
   ]);
 
-  // Si es publisher, usamos useLocalParticipant para control de mic/cam
   const localParticipantHook = useLocalParticipant();
   const [isMicMuted, setIsMicMuted] = useState(false);
   const [isCamOff, setIsCamOff] = useState(false);
+  const [isScreenSharing, setIsScreenSharing] = useState(false);
 
   const toggleMic = async () => {
     if (role !== "publisher") return;
@@ -185,9 +186,26 @@ function VideoStage({
     setIsCamOff(next);
   };
 
+  const toggleScreenShare = async () => {
+    if (role !== "publisher") return;
+    try {
+      const next = !isScreenSharing;
+      await localParticipantHook.localParticipant.setScreenShareEnabled(next);
+      setIsScreenSharing(next);
+    } catch (e) {
+      console.warn("Cancelado compartir pantalla", e);
+      setIsScreenSharing(false);
+    }
+  };
+
+  // Priorizar pantalla compartida si existe, sino cámara
+  const screenTrack = tracks.find(
+    (t) => t.source === Track.Source.ScreenShare && t.publication?.track
+  );
   const cameraTrack = tracks.find(
     (t) => t.source === Track.Source.Camera && t.publication?.track
   );
+  const activeVideoTrack = screenTrack || cameraTrack;
 
   return (
     <div className="relative w-full bg-black flex flex-col justify-center select-none overflow-hidden">
@@ -216,9 +234,9 @@ function VideoStage({
               📺 Ver Video
             </button>
           </div>
-        ) : cameraTrack && cameraTrack.publication?.track ? (
+        ) : activeVideoTrack && activeVideoTrack.publication?.track ? (
           <VideoTrack
-            trackRef={cameraTrack}
+            trackRef={activeVideoTrack}
             className="w-full h-full object-contain"
           />
         ) : (
@@ -253,6 +271,11 @@ function VideoStage({
                   conectados
                 </span>
               </span>
+              {screenTrack && (
+                <span className="bg-indigo-600/90 backdrop-blur text-white font-black text-[11px] px-2.5 py-0.5 rounded-full shadow border border-indigo-400/30">
+                  🖥️ Pantalla Compartida
+                </span>
+              )}
             </div>
 
             <div className="flex items-center gap-2 pointer-events-auto">
@@ -282,8 +305,8 @@ function VideoStage({
 
       {/* Barra de Controles Inferior para el Organizador */}
       {role === "publisher" && !isMinimized && (
-        <div className="bg-slate-900/95 border-t border-slate-800 px-4 py-2.5 flex items-center justify-between gap-3 text-xs">
-          <div className="flex items-center gap-2">
+        <div className="bg-slate-900/95 border-t border-slate-800 px-4 py-2.5 flex flex-wrap items-center justify-between gap-3 text-xs">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={toggleMic}
@@ -307,9 +330,21 @@ function VideoStage({
             >
               {isCamOff ? "🚫 Cámara Apagada" : "📹 Cámara Activa"}
             </button>
+
+            <button
+              type="button"
+              onClick={toggleScreenShare}
+              className={`px-3 py-1.5 rounded-xl font-black cursor-pointer transition-all flex items-center gap-1.5 shadow ${
+                isScreenSharing
+                  ? "bg-amber-400 text-slate-950 border border-amber-300 ring-2 ring-amber-400/50"
+                  : "bg-purple-600/30 hover:bg-purple-600/50 text-purple-200 border border-purple-500/40"
+              }`}
+            >
+              {isScreenSharing ? "🛑 Dejar de Compartir Pantalla" : "🖥️ Compartir Pantalla"}
+            </button>
           </div>
 
-          <div className="text-slate-400 font-medium hidden sm:block">
+          <div className="text-slate-400 font-medium hidden md:block">
             🔴 Transmitiendo a todos los jugadores sin retraso
           </div>
         </div>
