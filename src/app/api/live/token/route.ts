@@ -55,8 +55,8 @@ export async function GET(req: NextRequest) {
     at.addGrant({
       room,
       roomJoin: true,
-      canPublish: isPublisher,
-      canPublishData: true,
+      canPublish: true, // Permite publicar audio cuando el organizador le dé la palabra
+      canPublishData: true, // Permite enviar eventos de 'levantar la mano'
       canSubscribe: true,
     });
 
