@@ -10,7 +10,7 @@ import {
   VideoTrack,
   useRoomContext,
 } from "@livekit/components-react";
-import { Track, RoomEvent, DataPacket_Kind } from "livekit-client";
+import { Track, RoomEvent } from "livekit-client";
 import "@livekit/components-styles";
 
 interface BingoLiveStreamProps {
@@ -182,11 +182,19 @@ function VideoStage({
   const [canSpeak, setCanSpeak] = useState(role === "publisher");
   const [speakAlert, setSpeakAlert] = useState<string | null>(null);
 
+  // Al conectarse el Organizador, aseguramos que su micrófono esté activo por defecto
+  useEffect(() => {
+    if (role === "publisher" && localParticipant) {
+      localParticipant.setMicrophoneEnabled(true);
+      setIsMicMuted(false);
+    }
+  }, [role, localParticipant]);
+
   // Escuchar mensajes de datos en tiempo real (Levantar la mano, Silenciar, Habilitar hablar)
   useEffect(() => {
     if (!room) return;
 
-    const handleDataReceived = (payload: Uint8Array, participant?: any) => {
+    const handleDataReceived = (payload: Uint8Array) => {
       try {
         const str = new TextDecoder().decode(payload);
         const data = JSON.parse(str);
@@ -204,7 +212,7 @@ function VideoStage({
         }
 
         if (data.type === "SPEECH_PERMISSION") {
-          // Si este mensaje es para mí
+          // Si este mensaje es para mí (jugador)
           if (data.targetIdentity === localParticipant.identity) {
             if (data.allowed) {
               setCanSpeak(true);
@@ -213,24 +221,47 @@ function VideoStage({
               setIsMicMuted(false);
             } else {
               setCanSpeak(false);
+              setIRaisedHand(false); // Baja la mano automáticamente al ser silenciado
               setSpeakAlert("🔇 El organizador ha silenciado tu micrófono.");
               localParticipant.setMicrophoneEnabled(false);
               setIsMicMuted(true);
             }
             setTimeout(() => setSpeakAlert(null), 5000);
           }
+
+          // Para todos en la sala: si alguien fue silenciado o se le dio la palabra, quitamos su mano levantada
+          if (!data.allowed) {
+            setRaisedHands((prev) => {
+              const next = new Set(prev);
+              next.delete(data.targetIdentity);
+              return next;
+            });
+          }
+        }
+
+        if (data.type === "LOWER_HAND") {
+          setRaisedHands((prev) => {
+            const next = new Set(prev);
+            next.delete(data.targetIdentity);
+            return next;
+          });
+          if (data.targetIdentity === localParticipant.identity) {
+            setIRaisedHand(false);
+          }
         }
 
         if (data.type === "MUTE_ALL") {
           if (role !== "publisher") {
             setCanSpeak(false);
+            setIRaisedHand(false);
             localParticipant.setMicrophoneEnabled(false);
             setIsMicMuted(true);
             setSpeakAlert("🔇 El organizador ha silenciado la sala.");
             setTimeout(() => setSpeakAlert(null), 4000);
           }
+          setRaisedHands(new Set()); // Limpia todas las manos levantadas
         }
-      } catch (e) {
+      } catch {
         // Ignorar datos no JSON
       }
     };
@@ -259,10 +290,38 @@ function VideoStage({
   // Función del organizador para dar o quitar micrófono a un jugador
   const toggleParticipantSpeech = async (targetIdentity: string, currentAllowed: boolean) => {
     if (!room || role !== "publisher") return;
+    const nextAllowed = !currentAllowed;
+
     const msg = JSON.stringify({
       type: "SPEECH_PERMISSION",
       targetIdentity,
-      allowed: !currentAllowed,
+      allowed: nextAllowed,
+    });
+    const bytes = new TextEncoder().encode(msg);
+    await room.localParticipant.publishData(bytes, { reliable: true });
+
+    // Si le quitamos la palabra o lo silenciamos, quitamos la mano levantada
+    if (!nextAllowed) {
+      setRaisedHands((prev) => {
+        const next = new Set(prev);
+        next.delete(targetIdentity);
+        return next;
+      });
+    }
+  };
+
+  // Función del organizador para bajar la mano de un jugador directamente
+  const lowerParticipantHand = async (targetIdentity: string) => {
+    if (!room || role !== "publisher") return;
+    setRaisedHands((prev) => {
+      const next = new Set(prev);
+      next.delete(targetIdentity);
+      return next;
+    });
+
+    const msg = JSON.stringify({
+      type: "LOWER_HAND",
+      targetIdentity,
     });
     const bytes = new TextEncoder().encode(msg);
     await room.localParticipant.publishData(bytes, { reliable: true });
@@ -271,6 +330,7 @@ function VideoStage({
   // Función del organizador para silenciar a todos
   const muteAllParticipants = async () => {
     if (!room || role !== "publisher") return;
+    setRaisedHands(new Set());
     const msg = JSON.stringify({ type: "MUTE_ALL" });
     const bytes = new TextEncoder().encode(msg);
     await room.localParticipant.publishData(bytes, { reliable: true });
@@ -385,20 +445,26 @@ function VideoStage({
                 EN VIVO
               </span>
 
-              {/* Botón interactivo de conectados (Abre la lista de asistentes) */}
-              <button
-                type="button"
-                onClick={() => setShowParticipantsModal(true)}
-                title="Ver lista completa de jugadores en la sala"
-                className="pointer-events-auto bg-slate-950/85 hover:bg-slate-900 backdrop-blur border border-slate-700/80 text-emerald-400 text-xs font-black px-3 py-1 rounded-full shadow-lg flex items-center gap-1.5 cursor-pointer transition-all active:scale-95"
-              >
-                <span>👥 {participants.length} conectados</span>
-                {raisedHands.size > 0 && (
-                  <span className="bg-amber-400 text-slate-950 text-[10px] px-1.5 py-0.2 rounded-full font-black animate-bounce">
-                    ✋ {raisedHands.size}
-                  </span>
-                )}
-              </button>
+              {/* Si es Organizador: abre la lista de control. Si es Jugador: solo muestra la insignia sin abrir modal */}
+              {role === "publisher" ? (
+                <button
+                  type="button"
+                  onClick={() => setShowParticipantsModal(true)}
+                  title="Ver lista completa de jugadores en la sala"
+                  className="pointer-events-auto bg-slate-950/85 hover:bg-slate-900 backdrop-blur border border-slate-700/80 text-emerald-400 text-xs font-black px-3 py-1 rounded-full shadow-lg flex items-center gap-1.5 cursor-pointer transition-all active:scale-95"
+                >
+                  <span>👥 {participants.length} conectados</span>
+                  {raisedHands.size > 0 && (
+                    <span className="bg-amber-400 text-slate-950 text-[10px] px-1.5 py-0.2 rounded-full font-black animate-bounce">
+                      ✋ {raisedHands.size}
+                    </span>
+                  )}
+                </button>
+              ) : (
+                <span className="bg-slate-950/85 backdrop-blur border border-slate-700/80 text-emerald-400 text-xs font-black px-3 py-1 rounded-full shadow-lg flex items-center gap-1.5">
+                  👥 {participants.length} en sala
+                </span>
+              )}
 
               {screenTrack && (
                 <span className="bg-indigo-600/90 backdrop-blur text-white font-black text-[11px] px-2.5 py-0.5 rounded-full shadow border border-indigo-400/30">
@@ -524,9 +590,9 @@ function VideoStage({
       )}
 
       {/* ===================================================================== */}
-      {/* MODAL / PANEL DE PARTICIPANTES EN SALA (TIPO ZOOM / GOOGLE MEET)      */}
+      {/* MODAL EXCLUSIVO PARA EL ORGANIZADOR (GESTIÓN DE PARTICIPANTES)        */}
       {/* ===================================================================== */}
-      {showParticipantsModal && (
+      {showParticipantsModal && role === "publisher" && (
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-slate-900 border-2 border-slate-700 rounded-3xl max-w-lg w-full max-h-[85vh] flex flex-col shadow-2xl overflow-hidden">
             {/* Cabecera */}
@@ -562,20 +628,18 @@ function VideoStage({
                 className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-400"
               />
 
-              {role === "publisher" && (
-                <div className="flex items-center justify-between pt-1">
-                  <span className="text-slate-400 text-xs font-semibold">
-                    Control de Sala:
-                  </span>
-                  <button
-                    type="button"
-                    onClick={muteAllParticipants}
-                    className="bg-red-600/20 hover:bg-red-600/30 text-red-400 border border-red-500/40 px-3 py-1.5 rounded-xl font-bold text-xs cursor-pointer transition-colors flex items-center gap-1.5"
-                  >
-                    🔇 Silenciar a Todos
-                  </button>
-                </div>
-              )}
+              <div className="flex items-center justify-between pt-1">
+                <span className="text-slate-400 text-xs font-semibold">
+                  Control de Sala:
+                </span>
+                <button
+                  type="button"
+                  onClick={muteAllParticipants}
+                  className="bg-red-600/20 hover:bg-red-600/30 text-red-400 border border-red-500/40 px-3 py-1.5 rounded-xl font-bold text-xs cursor-pointer transition-colors flex items-center gap-1.5"
+                >
+                  🔇 Silenciar a Todos
+                </button>
+              </div>
             </div>
 
             {/* Lista de Participantes */}
@@ -637,8 +701,19 @@ function VideoStage({
                       </div>
 
                       {/* Botones de Control para el Organizador */}
-                      {role === "publisher" && !isHost && (
+                      {!isHost && (
                         <div className="flex items-center gap-1.5 shrink-0">
+                          {hasHandRaised && (
+                            <button
+                              type="button"
+                              onClick={() => lowerParticipantHand(p.identity)}
+                              title="Bajar mano sin abrir micrófono"
+                              className="px-2 py-1 rounded-lg font-bold text-[11px] bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-400/30 cursor-pointer"
+                            >
+                              ✋ Bajar Mano
+                            </button>
+                          )}
+
                           <button
                             type="button"
                             onClick={() => toggleParticipantSpeech(p.identity, p.isMicrophoneEnabled)}
