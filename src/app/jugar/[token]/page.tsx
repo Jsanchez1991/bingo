@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import QRCode from "qrcode";
 import confetti from "canvas-confetti";
 import BingoTableCard from "@/components/BingoTableCard";
+import BingoLiveStream from "@/components/BingoLiveStream";
 import {
   BingoCardSheet,
   BingoGameState,
@@ -748,6 +749,20 @@ export default function PlayerBingoPage() {
       {/* CONTENIDO PRINCIPAL DEL CARTÓN                                        */}
       {/* ===================================================================== */}
       <main className="print-main max-w-6xl mx-auto px-3 pt-4 sm:px-6">
+        {/* TRANSMISIÓN EN VIVO DEL BOLILLERO (WEBRTC) */}
+        {gameState && primaryCard && (
+          <div className="mb-4 no-print">
+            <BingoLiveStream
+              roomName={gameState.eventId}
+              role="viewer"
+              identity={`player_${primaryCard.cardNumber}`}
+              displayName={primaryCard.buyerName || `Jugador #${primaryCard.cardNumber}`}
+              playerToken={primaryCard.secretToken}
+              defaultCollapsed={false}
+            />
+          </div>
+        )}
+
         {/* Barra superior de acciones rápidas */}
         <div className="flex flex-wrap items-center justify-between gap-2 mb-4 no-print">
           <div className="flex flex-wrap items-center gap-2">

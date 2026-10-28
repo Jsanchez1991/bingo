@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import BingoTableCard from "@/components/BingoTableCard";
+import BingoLiveStream from "@/components/BingoLiveStream";
 import type {
   BingoGameState,
   BingoClaim,
@@ -1344,6 +1345,20 @@ export default function AdminOrganizerPage() {
             </div>
           </div>
         </section>
+
+        {/* =================================================================== */}
+        {/* TRANSMISIÓN DE VIDEO EN VIVO (WEBRTC) HACIA TODOS LOS JUGADORES     */}
+        {/* =================================================================== */}
+        {gameState && (
+          <section className="mb-6">
+            <BingoLiveStream
+              roomName={gameState.eventId}
+              role="publisher"
+              identity={`org_${organizer?.id || "admin"}`}
+              displayName={organizer?.name || "Organizador del Bingo"}
+            />
+          </section>
+        )}
 
         {/* =================================================================== */}
         {/* PASO 2: TABLERO DE 75 BOLILLAS + COLA DE VERIFICACIÓN Y DESEMPATE   */}
