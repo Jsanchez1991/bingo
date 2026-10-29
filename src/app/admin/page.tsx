@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import BingoTableCard from "@/components/BingoTableCard";
 import BingoLiveStream from "@/components/BingoLiveStream";
+import BingoCage3D from "@/components/BingoCage3D";
 import type {
   BingoGameState,
   BingoClaim,
@@ -160,6 +161,8 @@ export default function AdminOrganizerPage() {
   const [sellerStatusMsg, setSellerStatusMsg] = useState<string | null>(null);
   // Control para evitar rebotes de clics rápidos en el bolillero
   const [togglingBall, setTogglingBall] = useState<number | null>(null);
+  // Modo de visualización del bolillero: '3D' (Tómbola animada), 'BOARD' (Tablero tradicional 1-75), 'BOTH' (Ambos lado a lado)
+  const [bolilleroMode, setBolilleroMode] = useState<"3D" | "BOARD" | "BOTH">("3D");
 
   // Verificación rápida por escaneo / ingreso de número de cartón físico
   const [quickScanCardInput, setQuickScanCardInput] = useState<string>("");
@@ -1470,7 +1473,62 @@ export default function AdminOrganizerPage() {
               </div>
             </div>
 
-            <div className="space-y-2.5">
+            {/* Pestañas de Cambio de Vista: Bolillero 3D / Tablero 1-75 / Ambos */}
+            <div className="flex items-center gap-2 mb-4 bg-slate-950 p-1.5 rounded-2xl border border-slate-800">
+              <button
+                type="button"
+                onClick={() => setBolilleroMode("3D")}
+                className={`flex-1 py-2 rounded-xl text-xs sm:text-sm font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                  bolilleroMode === "3D"
+                    ? "bg-amber-400 text-slate-950 shadow-md shadow-amber-400/20"
+                    : "text-slate-400 hover:text-white hover:bg-slate-900"
+                }`}
+              >
+                <span>🎰 Bolillero Virtual 3D</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setBolilleroMode("BOARD")}
+                className={`flex-1 py-2 rounded-xl text-xs sm:text-sm font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                  bolilleroMode === "BOARD"
+                    ? "bg-amber-400 text-slate-950 shadow-md shadow-amber-400/20"
+                    : "text-slate-400 hover:text-white hover:bg-slate-900"
+                }`}
+              >
+                <span>📋 Tablero 1 al 75</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setBolilleroMode("BOTH")}
+                className={`hidden sm:flex flex-1 py-2 rounded-xl text-xs sm:text-sm font-black transition-all items-center justify-center gap-1.5 cursor-pointer ${
+                  bolilleroMode === "BOTH"
+                    ? "bg-amber-400 text-slate-950 shadow-md shadow-amber-400/20"
+                    : "text-slate-400 hover:text-white hover:bg-slate-900"
+                }`}
+              >
+                <span>✨ Ver Ambos</span>
+              </button>
+            </div>
+
+            {/* Renderizado del Bolillero 3D cuando esté activo */}
+            {(bolilleroMode === "3D" || bolilleroMode === "BOTH") && (
+              <div className="mb-4">
+                <BingoCage3D
+                  drawnNumbers={gameState.drawnBalls}
+                  lastBall={lastBall}
+                  onDrawBall={(ballNumber) => {
+                    handleToggleBallWithVoice(ballNumber);
+                  }}
+                  disabled={togglingBall !== null}
+                />
+              </div>
+            )}
+
+            {/* Renderizado del Tablero 1-75 tradicional cuando esté activo */}
+            {(bolilleroMode === "BOARD" || bolilleroMode === "BOTH") && (
+              <div className="space-y-2.5">
               {[
                 { letter: "B", min: 1, max: 15, color: "bg-blue-600" },
                 { letter: "I", min: 16, max: 30, color: "bg-rose-600" },
@@ -1521,6 +1579,7 @@ export default function AdminOrganizerPage() {
                 );
               })}
             </div>
+            )}
 
             <div className="mt-4 pt-3 border-t border-slate-800 flex flex-wrap items-center justify-between gap-2 text-sm">
               <div className="text-slate-300 font-bold">

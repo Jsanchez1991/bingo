@@ -167,3 +167,29 @@ export function announceCustomVoice(message: string, soundEnabled: boolean = tru
     }, 300);
   } catch {}
 }
+
+/**
+ * Sonido rítmico/orgánico de clac-clac de bolillas chocando dentro de la tómbola
+ */
+export function playTumbleClack() {
+  try {
+    const ctx = getAudioContext();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    // Sonido percusivo de bola de acrílico/madera
+    osc.type = "sine";
+    const baseFreq = 300 + Math.random() * 260;
+    osc.frequency.setValueAtTime(baseFreq, now);
+    osc.frequency.exponentialRampToValueAtTime(120, now + 0.035);
+
+    gain.gain.setValueAtTime(0.08, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.045);
+  } catch {}
+}
