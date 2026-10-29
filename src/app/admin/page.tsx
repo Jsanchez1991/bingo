@@ -161,6 +161,10 @@ export default function AdminOrganizerPage() {
   // Control para evitar rebotes de clics rápidos en el bolillero
   const [togglingBall, setTogglingBall] = useState<number | null>(null);
 
+  // Verificación rápida por escaneo / ingreso de número de cartón físico
+  const [quickScanCardInput, setQuickScanCardInput] = useState<string>("");
+  const [quickScanStatus, setQuickScanStatus] = useState<{ msg: string; isError: boolean } | null>(null);
+
   // Sincronizar el input de tamaño de talonario con el tope permitido por su plan
   useEffect(() => {
     if (plan?.maxCardsPerEvent) {
@@ -361,6 +365,67 @@ export default function AdminOrganizerPage() {
     }
     fetchState();
     return data;
+  };
+
+  const handleQuickVerifyPhysicalCard = async () => {
+    if (!quickScanCardInput.trim() || !gameState) return;
+    setQuickScanStatus(null);
+
+    // Limpiar entrada si es una URL completa escaneada por cámara o pistola de código de barras
+    let cleanCardOrToken = quickScanCardInput.trim();
+    if (cleanCardOrToken.includes("verificar=")) {
+      const match = cleanCardOrToken.match(/verificar=([^&]+)/);
+      if (match) cleanCardOrToken = match[1];
+    } else if (cleanCardOrToken.includes("/jugar/")) {
+      const parts = cleanCardOrToken.split("/jugar/");
+      if (parts[1]) cleanCardOrToken = parts[1].split("?")[0];
+    } else {
+      // Si el organizador escribió por ejemplo "1" o "45", rellenarlo con ceros si corresponde
+      if (/^\d+$/.test(cleanCardOrToken) && cleanCardOrToken.length < 5) {
+        cleanCardOrToken = cleanCardOrToken.padStart(5, "0");
+      }
+    }
+
+    try {
+      const res = await fetch("/api/bingo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "SUBMIT_CLAIM",
+          token: cleanCardOrToken,
+          cardNumber: cleanCardOrToken,
+          tableIndex: gameState.activeTable,
+          eventId: gameState.eventId,
+        }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setQuickScanStatus({
+          msg: `✅ Cartón verificado: ${data.message}`,
+          isError: false,
+        });
+        if (data.claim) {
+          setSelectedClaimId(data.claim.id);
+        }
+        if (data.state) {
+          setGameState(data.state);
+        }
+        announceCustomVoice(
+          `¡Cartón verificado en cabina!`,
+          soundEnabled
+        );
+      } else {
+        setQuickScanStatus({
+          msg: `⚠️ ${data.message || "Cartón no encontrado en este evento"}`,
+          isError: true,
+        });
+      }
+    } catch {
+      setQuickScanStatus({
+        msg: "Error al conectar con el servidor para verificar.",
+        isError: true,
+      });
+    }
   };
 
   const handleQuickInlineLogin = async (
@@ -1531,6 +1596,53 @@ export default function AdminOrganizerPage() {
                     </button>
                   )}
                 </div>
+              </div>
+
+              {/* BARRA DE ESCANEO / VERIFICACIÓN RÁPIDA DE CARTÓN FÍSICO */}
+              <div className="mb-4 bg-slate-950 border border-slate-700 rounded-2xl p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-black uppercase text-emerald-400 flex items-center gap-1.5">
+                    <span>📷</span> Verificar Hoja Impresa o Cartón Físico:
+                  </span>
+                  <span className="text-[11px] text-slate-400">
+                    Ingresa o escanea el # de cartón
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    placeholder="Ej. 0001 o pega enlace del QR..."
+                    value={quickScanCardInput}
+                    onChange={(e) => {
+                      setQuickScanCardInput(e.target.value);
+                      setQuickScanStatus(null);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && quickScanCardInput.trim()) {
+                        handleQuickVerifyPhysicalCard();
+                      }
+                    }}
+                    className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-500 font-bold focus:outline-none focus:border-emerald-400"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleQuickVerifyPhysicalCard}
+                    className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black px-4 py-2 rounded-xl text-xs sm:text-sm shadow cursor-pointer transition-transform active:scale-95 shrink-0"
+                  >
+                    🔍 Verificar Ahora
+                  </button>
+                </div>
+                {quickScanStatus && (
+                  <div
+                    className={`text-xs font-bold px-3 py-1.5 rounded-xl ${
+                      quickScanStatus.isError
+                        ? "bg-red-950/70 border border-red-500/50 text-red-300"
+                        : "bg-emerald-950/70 border border-emerald-500/50 text-emerald-300"
+                    }`}
+                  >
+                    {quickScanStatus.msg}
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-3 gap-2.5 mb-4">

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useCallback, useRef } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import QRCode from "qrcode";
 import confetti from "canvas-confetti";
 import BingoTableCard from "@/components/BingoTableCard";
@@ -28,6 +28,9 @@ export default function PlayerBingoPage() {
   const params = useParams();
   const token = String(params?.token || "juego-00001");
 
+  const searchParams = useSearchParams();
+  const scannedCardFromUrl = searchParams.get("verificar");
+
   const [deviceId, setDeviceId] = useState<string>("");
   const [gameState, setGameState] = useState<BingoGameState | null>(null);
   // Todas las hojas/tablas de 6 juegos compradas por este mismo cliente
@@ -36,6 +39,10 @@ export default function PlayerBingoPage() {
   const [clientIp, setClientIp] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // Modal para cantar bingo instantáneo desde hoja física escaneada
+  const [showScanVerifyModal, setShowScanVerifyModal] = useState<boolean>(Boolean(scannedCardFromUrl));
+  const [scannedCardNumber, setScannedCardNumber] = useState<string>(scannedCardFromUrl || "");
 
   // null = Vista de Hoja(s) Completa(s) de 6 juegos; 1..6 = Vista enfocada en ese Juego (T#1..T#6)
   const [zoomedTable, setZoomedTable] = useState<number | null>(null);
@@ -746,6 +753,123 @@ export default function PlayerBingoPage() {
       )}
 
       {/* ===================================================================== */}
+      {/* MODAL: VERIFICACIÓN INSTANTÁNEA POR ESCANEO DE HOJA IMPRESA           */}
+      {/* ===================================================================== */}
+      {showScanVerifyModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto no-print">
+          <div className="bg-slate-900 border-4 border-emerald-400 text-white rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl space-y-5 animate-in fade-in zoom-in-95">
+            <div className="text-center space-y-1">
+              <span className="inline-block bg-emerald-500 text-slate-950 font-black px-4 py-1 rounded-full text-xs sm:text-sm uppercase tracking-wider">
+                📷 HOJA IMPRESA ESCANEADA
+              </span>
+              <h2 className="text-2xl sm:text-3xl font-black text-white">
+                ¿Completaste el Bingo en tu Hoja?
+              </h2>
+              <p className="text-slate-300 text-sm sm:text-base">
+                Verificando en vivo con el bolillero oficial para:
+              </p>
+            </div>
+
+            {(() => {
+              const targetCard = playerCards.find(
+                (c) => c.cardNumber === (scannedCardNumber || primaryCard?.cardNumber)
+              ) || primaryCard;
+              if (!targetCard) return null;
+
+              const activeT = gameState?.activeTable || 1;
+              const tableObj = targetCard.tables.find((t) => t.tableIndex === activeT);
+              const wonRecords = (gameState?.winnersHistory || []).filter(
+                (w) => w.cardNumber === targetCard.cardNumber && w.tableIndex === activeT
+              );
+              const alreadyWonFig = wonRecords.map((w) => w.patternType || w.stage);
+              const liveValidation = tableObj && gameState
+                ? validateTablePattern(
+                    tableObj.grid,
+                    activeT,
+                    gameState.activeStage,
+                    gameState.drawnBalls,
+                    targetCard.markedByTable[String(activeT)] || [],
+                    alreadyWonFig
+                  )
+                : null;
+
+              return (
+                <div className="space-y-4">
+                  <div className="bg-slate-950 border-2 border-slate-700 rounded-2xl p-4 flex items-center justify-between">
+                    <div>
+                      <div className="text-xs text-amber-400 font-extrabold uppercase">
+                        Jugador(a):
+                      </div>
+                      <div className="text-lg font-black text-white">
+                        {targetCard.buyerName}
+                      </div>
+                      <div className="text-xs text-slate-400">
+                        Cartón Oficial #{targetCard.cardNumber}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-xs text-emerald-400 font-extrabold uppercase">
+                        Juego Actual:
+                      </div>
+                      <div className="text-base font-black text-white">
+                        Tabla #{activeT}
+                      </div>
+                      <div className="text-xs text-amber-300 font-bold">
+                        {STAGES[gameState?.activeStage || "LINEA"]?.shortLabel}
+                      </div>
+                    </div>
+                  </div>
+
+                  {liveValidation && (
+                    <div
+                      className={`p-4 rounded-2xl border-2 text-center ${
+                        liveValidation.isValidOfficial
+                          ? "bg-emerald-950/80 border-emerald-400 text-emerald-200"
+                          : "bg-amber-950/70 border-amber-500/80 text-amber-200"
+                      }`}
+                    >
+                      <div className="text-lg sm:text-xl font-black">
+                        {liveValidation.isValidOfficial
+                          ? `✅ ¡FIGURA COMPLETADA: ${liveValidation.patternName}!`
+                          : `ℹ️ Aún faltan números para: ${liveValidation.patternName}`}
+                      </div>
+                      <p className="text-xs mt-1 text-slate-300">
+                        {liveValidation.isValidOfficial
+                          ? "Toca el botón verde abajo para cantar Bingo ante el organizador en vivo."
+                          : "Si crees que tienes Bingo, puedes enviarlo para que el organizador revise tu cartón."}
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="pt-2 space-y-2">
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        await handleSendClaim(targetCard.cardNumber, activeT);
+                        setShowScanVerifyModal(false);
+                      }}
+                      disabled={submittingCardNum === targetCard.cardNumber}
+                      className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-500 hover:from-emerald-400 hover:to-teal-300 text-slate-950 font-black text-xl sm:text-2xl shadow-xl transition-all active:scale-95 cursor-pointer border-2 border-white flex items-center justify-center gap-2"
+                    >
+                      <span>🚨 ¡CANTAR BINGO EN VIVO AHORA!</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setShowScanVerifyModal(false)}
+                      className="w-full py-2.5 text-slate-400 hover:text-white font-bold text-sm cursor-pointer"
+                    >
+                      Seguir viendo el juego digital
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+        </div>
+      )}
+
+      {/* ===================================================================== */}
       {/* CONTENIDO PRINCIPAL DEL CARTÓN                                        */}
       {/* ===================================================================== */}
       <main className="print-main max-w-6xl mx-auto px-3 pt-4 sm:px-6">
@@ -1142,11 +1266,16 @@ export default function PlayerBingoPage() {
                       </div>
                     </div>
                     {qrUrl && (
-                      <img
-                        src={qrUrl}
-                        alt={`QR Cartón ${sheetCard.cardNumber}`}
-                        className="w-20 h-20 print:w-14 print:h-14 rounded-lg border border-slate-900 bg-white p-0.5"
-                      />
+                      <div className="text-center space-y-0.5">
+                        <img
+                          src={qrUrl}
+                          alt={`QR Cartón ${sheetCard.cardNumber}`}
+                          className="w-20 h-20 print:w-16 print:h-16 rounded-lg border border-slate-900 bg-white p-0.5 mx-auto shadow-sm"
+                        />
+                        <div className="text-[9px] print:text-[8px] font-black uppercase text-emerald-800 leading-tight">
+                          📷 Escanea aquí si ganas
+                        </div>
+                      </div>
                     )}
                   </div>
                 </div>
