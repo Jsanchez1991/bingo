@@ -55,6 +55,12 @@ export default function PlayerBingoPage() {
 
   const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
   const prevLastBallRef = useRef<number | null>(null);
+  const announcedBallsSetRef = useRef<Set<number>>(new Set());
+  const lastRealtimeDrawRef = useRef<{ tableIndex: number; drawnBalls: number[]; timestamp: number }>({
+    tableIndex: 1,
+    drawnBalls: [],
+    timestamp: 0,
+  });
   const isFirstFetchRef = useRef<boolean>(true);
   // Candado para que las marcas locales nunca se despinten con el polling
   const pendingMarksRef = useRef<Map<string, { marked: boolean; timestamp: number }>>(new Map());
@@ -110,7 +116,29 @@ export default function PlayerBingoPage() {
         return;
       }
       const data = await res.json();
-      const newState: BingoGameState = data.state;
+      let newState: BingoGameState = data.state;
+
+      // Si el servidor reinició el bolillero (0 bolillas) o cambió de tabla, limpiar el registro de voz
+      if (
+        newState.drawnBalls.length === 0 ||
+        newState.activeTable !== lastRealtimeDrawRef.current.tableIndex
+      ) {
+        announcedBallsSetRef.current.clear();
+        lastRealtimeDrawRef.current = {
+          tableIndex: newState.activeTable,
+          drawnBalls: newState.drawnBalls,
+          timestamp: Date.now(),
+        };
+      } else if (
+        Date.now() - lastRealtimeDrawRef.current.timestamp < 10000 &&
+        newState.drawnBalls.length < lastRealtimeDrawRef.current.drawnBalls.length
+      ) {
+        // Evitar que un sondeo HTTP atrasado sobrescriba una bolilla que ya llegó en vivo por Realtime
+        newState = {
+          ...newState,
+          drawnBalls: lastRealtimeDrawRef.current.drawnBalls,
+        };
+      }
 
       const currentLastBall =
         newState.drawnBalls.length > 0
@@ -120,11 +148,14 @@ export default function PlayerBingoPage() {
       if (!isFirstFetchRef.current) {
         if (
           currentLastBall !== null &&
-          currentLastBall !== prevLastBallRef.current
+          !announcedBallsSetRef.current.has(currentLastBall)
         ) {
+          announcedBallsSetRef.current.add(currentLastBall);
           announceBallVoice(currentLastBall, soundEnabled);
         }
+        newState.drawnBalls.forEach((b) => announcedBallsSetRef.current.add(b));
       } else {
+        newState.drawnBalls.forEach((b) => announcedBallsSetRef.current.add(b));
         isFirstFetchRef.current = false;
       }
       prevLastBallRef.current = currentLastBall;
@@ -197,16 +228,27 @@ export default function PlayerBingoPage() {
           if (payload.new) {
             setGameState((prev) => {
               if (!prev || prev.eventId !== payload.new.id) return prev;
-              const newDrawn = payload.new.drawn_balls || [];
-              const lastBall = newDrawn.length > 0 ? newDrawn[newDrawn.length - 1] : null;
-              if (lastBall !== null && lastBall !== prevLastBallRef.current) {
-                announceBallVoice(lastBall, soundEnabled);
-                prevLastBallRef.current = lastBall;
+              const newDrawn: number[] = payload.new.drawn_balls || [];
+              const nextTable = payload.new.active_table || prev.activeTable;
+              if (newDrawn.length === 0 || nextTable !== prev.activeTable) {
+                announcedBallsSetRef.current.clear();
               }
+              lastRealtimeDrawRef.current = {
+                tableIndex: nextTable,
+                drawnBalls: newDrawn,
+                timestamp: Date.now(),
+              };
+              const lastBall = newDrawn.length > 0 ? newDrawn[newDrawn.length - 1] : null;
+              if (lastBall !== null && !announcedBallsSetRef.current.has(lastBall)) {
+                announcedBallsSetRef.current.add(lastBall);
+                announceBallVoice(lastBall, soundEnabled);
+              }
+              newDrawn.forEach((b) => announcedBallsSetRef.current.add(b));
+              prevLastBallRef.current = lastBall;
               const incomingTieBreak = payload.new.prizes_by_table?.__tieBreak;
               return {
                 ...prev,
-                activeTable: payload.new.active_table,
+                activeTable: nextTable,
                 activeStage: payload.new.active_stage,
                 currentPrizeName: payload.new.current_prize_name,
                 drawnBalls: newDrawn,

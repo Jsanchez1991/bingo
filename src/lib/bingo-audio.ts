@@ -100,16 +100,31 @@ export function playBingoFanfare() {
   } catch {}
 }
 
+let pendingSpeechTimeout: ReturnType<typeof setTimeout> | null = null;
+let lastAnnouncedBall: { ball: number; time: number } | null = null;
+
 /**
  * Canta con voz en español la bolilla que acaba de salir (ej. "¡Bolilla B, 12!").
+ * Incluye protección anti-repetición para evitar que la misma bolilla se encole o repita.
  */
 export function announceBallVoice(ballNumber: number, soundEnabled: boolean = true) {
   if (!soundEnabled || typeof window === "undefined") return;
+
+  const now = Date.now();
+  // Evitar que el mismo número se dispare repetidas veces por solapamiento entre clic, Realtime y Polling
+  if (lastAnnouncedBall && lastAnnouncedBall.ball === ballNumber && now - lastAnnouncedBall.time < 3500) {
+    return;
+  }
+  lastAnnouncedBall = { ball: ballNumber, time: now };
 
   playBallChime();
 
   if (!("speechSynthesis" in window)) return;
   try {
+    if (pendingSpeechTimeout) {
+      clearTimeout(pendingSpeechTimeout);
+      pendingSpeechTimeout = null;
+    }
     window.speechSynthesis.cancel();
     const letter = getBallLetter(ballNumber);
     // Pronunciación clara en español para cada letra (evita que el navegador confunda "Ene 33" con el mes de Enero de 1933)
@@ -124,7 +139,7 @@ export function announceBallVoice(ballNumber: number, soundEnabled: boolean = tr
         ? "Letra G"
         : "Letra O";
 
-    const text = `¡${letterSpoken}, número ${ballNumber}! ... ${letterSpoken}, ${ballNumber}`;
+    const text = `¡${letterSpoken}, número ${ballNumber}!`;
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = "es-EC";
     utterance.rate = 0.95;
@@ -140,9 +155,11 @@ export function announceBallVoice(ballNumber: number, soundEnabled: boolean = tr
       utterance.voice = spanishVoice;
     }
 
-    setTimeout(() => {
+    pendingSpeechTimeout = setTimeout(() => {
+      pendingSpeechTimeout = null;
+      window.speechSynthesis.cancel();
       window.speechSynthesis.speak(utterance);
-    }, 220);
+    }, 180);
   } catch {}
 }
 
@@ -155,6 +172,10 @@ export function announceCustomVoice(message: string, soundEnabled: boolean = tru
 
   if (!("speechSynthesis" in window)) return;
   try {
+    if (pendingSpeechTimeout) {
+      clearTimeout(pendingSpeechTimeout);
+      pendingSpeechTimeout = null;
+    }
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(message);
     utterance.lang = "es-EC";
@@ -162,9 +183,11 @@ export function announceCustomVoice(message: string, soundEnabled: boolean = tru
     const voices = window.speechSynthesis.getVoices();
     const spanishVoice = voices.find((v) => v.lang.startsWith("es"));
     if (spanishVoice) utterance.voice = spanishVoice;
-    setTimeout(() => {
+    pendingSpeechTimeout = setTimeout(() => {
+      pendingSpeechTimeout = null;
+      window.speechSynthesis.cancel();
       window.speechSynthesis.speak(utterance);
-    }, 300);
+    }, 250);
   } catch {}
 }
 

@@ -291,6 +291,7 @@ const DB_PATH = path.join(DATA_DIR, "bingo-db.json");
 let memoryCacheDb: SaasDatabase | null = null;
 let lastMemoryCacheTime = 0;
 let supabaseLoadedOnce = false;
+let lastModifiedEventId: string | null = null;
 
 function getSupabaseCredentials(): { url: string; key: string } | null {
   // Solo activar Supabase si se definen explícitamente las variables de entorno
@@ -547,12 +548,10 @@ export async function syncToSupabase(
   const payload = db || memoryCacheDb;
   if (!creds || !payload) return;
   try {
-    // 1. Si no se especificó evento, priorizar el evento activo por defecto para no escribir todos los eventos a la vez
+    const targetEvId = specificEventId || lastModifiedEventId || payload.activeDefaultEventId;
     const eventsToSync =
-      specificEventId && payload.events[specificEventId]
-        ? [payload.events[specificEventId]]
-        : payload.activeDefaultEventId && payload.events[payload.activeDefaultEventId]
-        ? [payload.events[payload.activeDefaultEventId]]
+      targetEvId && payload.events[targetEvId]
+        ? [payload.events[targetEvId]]
         : Object.values(payload.events);
 
     await Promise.all(
@@ -1376,6 +1375,7 @@ export function readSaasDb(): SaasDatabase {
 export function writeSaasDb(db: SaasDatabase): SaasDatabase {
   db.updatedAt = new Date().toISOString();
   memoryCacheDb = db;
+  lastMemoryCacheTime = Date.now();
   try {
     if (!fs.existsSync(DATA_DIR)) {
       fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -1383,10 +1383,6 @@ export function writeSaasDb(db: SaasDatabase): SaasDatabase {
     fs.writeFileSync(DB_PATH, JSON.stringify(db, null, 2), "utf-8");
   } catch {
     // En entornos serverless (Vercel) el sistema de archivos es read-only
-  }
-  // Si hay credenciales de Supabase configuradas, sincronizar en segundo plano
-  if (getSupabaseCredentials()) {
-    syncToSupabase(db).catch(() => {});
   }
   return db;
 }
@@ -1406,6 +1402,7 @@ export function writeGameState(
   const targetId = eventId || state.eventId || db.activeDefaultEventId;
   state.eventId = targetId;
   state.updatedAt = new Date().toISOString();
+  lastModifiedEventId = targetId;
   db.events[targetId] = state;
   writeSaasDb(db);
   return state;

@@ -36,6 +36,7 @@ export default function BingoCage3D({
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [isSpinning, setIsSpinning] = useState<boolean>(false);
   const [extractingBall, setExtractingBall] = useState<number | null>(null);
+  const [isExtracting, setIsExtracting] = useState<boolean>(false);
   const [rotationSpeed, setRotationSpeed] = useState<number>(0.02);
 
   // Set de bolillas ya jugadas
@@ -411,7 +412,8 @@ export default function BingoCage3D({
 
   // Función para sacar una bolilla con animación y sonido
   const handleExtractBall = () => {
-    if (disabled || availableNumbers.length === 0) return;
+    if (disabled || isExtracting || availableNumbers.length === 0) return;
+    setIsExtracting(true);
 
     // Seleccionar aleatoriamente una de las bolillas disponibles
     const randomIndex = Math.floor(Math.random() * availableNumbers.length);
@@ -429,6 +431,7 @@ export default function BingoCage3D({
 
       // Notificar al organizador para que se registre oficialmente
       onDrawBall(chosen);
+      setIsExtracting(false);
 
       // Limpiar animación de extracción flotante tras 2 segundos
       setTimeout(() => {
@@ -548,7 +551,7 @@ export default function BingoCage3D({
             <button
               type="button"
               onClick={handleExtractBall}
-              disabled={disabled || availableNumbers.length === 0}
+              disabled={disabled || isExtracting || availableNumbers.length === 0}
               className="px-4 py-2 rounded-xl font-black text-xs sm:text-sm bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 text-slate-950 shadow-lg shadow-amber-500/20 active:scale-95 transition-all flex items-center gap-1 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
             >
               🎲 Sacar Bolilla

@@ -180,7 +180,7 @@ export default function AdminOrganizerPage() {
   const announcedClaimIdsRef = useRef<Set<string>>(new Set());
   const isFirstFetchRef = useRef<boolean>(true);
   const activeEventIdRef = useRef<string | null>(null);
-  const pendingBallActionsRef = useRef<{ added: Set<number>; removed: Set<number> }>({ added: new Set(), removed: new Set() });
+  const pendingBallActionsRef = useRef<Map<number, { action: "ADD" | "REMOVE"; timestamp: number }>>(new Map());
 
   // Estado del formulario de Personalización del Cartón y Premios de las 6 Tablas
   const [showCustomizeForm, setShowCustomizeForm] = useState<boolean>(false);
@@ -258,22 +258,24 @@ export default function AdminOrganizerPage() {
         isFirstFetchRef.current = false;
       }
 
-      // Fusionar bolillas marcadas recientemente para que no parpadeen ni se despinten
+      // Fusionar bolillas marcadas recientemente (candado de 12s) para que ninguna respuesta vieja de red las borre del tablero
       let mergedDrawn = [...newState.drawnBalls];
-      pendingBallActionsRef.current.added.forEach((b: number) => {
-        if (mergedDrawn.includes(b)) {
-          pendingBallActionsRef.current.added.delete(b);
-        } else {
-          mergedDrawn.push(b);
+      const now = Date.now();
+      for (const [b, entry] of pendingBallActionsRef.current.entries()) {
+        if (now - entry.timestamp > 12000) {
+          pendingBallActionsRef.current.delete(b);
+          continue;
         }
-      });
-      pendingBallActionsRef.current.removed.forEach((b: number) => {
-        if (!mergedDrawn.includes(b)) {
-          pendingBallActionsRef.current.removed.delete(b);
-        } else {
-          mergedDrawn = mergedDrawn.filter((x) => x !== b);
+        if (entry.action === "ADD") {
+          if (!mergedDrawn.includes(b)) {
+            mergedDrawn.push(b);
+          }
+        } else if (entry.action === "REMOVE") {
+          if (mergedDrawn.includes(b)) {
+            mergedDrawn = mergedDrawn.filter((x) => x !== b);
+          }
         }
-      });
+      }
       newState = { ...newState, drawnBalls: mergedDrawn };
 
       setGameState(newState);
@@ -346,12 +348,27 @@ export default function AdminOrganizerPage() {
     } else if (data.ok) {
       setLimitErrorMsg(null);
     }
+    if (payload.resetBalls) {
+      pendingBallActionsRef.current.clear();
+    }
     if (data.state) {
-      pendingBallActionsRef.current.added.clear();
-      pendingBallActionsRef.current.removed.clear();
-      activeEventIdRef.current = data.state.eventId;
-      setGameState(data.state);
-      setPrizeInput(data.state.currentPrizeName);
+      let mergedDrawn = [...data.state.drawnBalls];
+      const now = Date.now();
+      for (const [b, entry] of pendingBallActionsRef.current.entries()) {
+        if (now - entry.timestamp > 12000) {
+          pendingBallActionsRef.current.delete(b);
+          continue;
+        }
+        if (entry.action === "ADD" && !mergedDrawn.includes(b)) {
+          mergedDrawn.push(b);
+        } else if (entry.action === "REMOVE" && mergedDrawn.includes(b)) {
+          mergedDrawn = mergedDrawn.filter((x) => x !== b);
+        }
+      }
+      const nextState = { ...data.state, drawnBalls: mergedDrawn };
+      activeEventIdRef.current = nextState.eventId;
+      setGameState(nextState);
+      setPrizeInput(nextState.currentPrizeName);
     }
     if (data.organizer) {
       setOrganizer(data.organizer);
@@ -366,7 +383,9 @@ export default function AdminOrganizerPage() {
       setSaasSession(data.session);
       setSession(data.session);
     }
-    fetchState();
+    if (!data.state) {
+      fetchState();
+    }
     return data;
   };
 
@@ -580,13 +599,10 @@ export default function AdminOrganizerPage() {
     const wasAlreadyDrawn = drawnSet.has(ballNum);
     const targetMode: "ADD" | "REMOVE" = wasAlreadyDrawn ? "REMOVE" : "ADD";
 
-    if (wasAlreadyDrawn) {
-      pendingBallActionsRef.current.removed.add(ballNum);
-      pendingBallActionsRef.current.added.delete(ballNum);
-    } else {
-      pendingBallActionsRef.current.added.add(ballNum);
-      pendingBallActionsRef.current.removed.delete(ballNum);
-    }
+    pendingBallActionsRef.current.set(ballNum, {
+      action: targetMode,
+      timestamp: Date.now(),
+    });
 
     // Actualización optimista local inmediata para que la bolilla no parpadee ni se desmarque
     setGameState((prev) => {
@@ -622,8 +638,10 @@ export default function AdminOrganizerPage() {
     const picked = remaining[Math.floor(Math.random() * remaining.length)];
     setTogglingBall(picked);
 
-    pendingBallActionsRef.current.added.add(picked);
-    pendingBallActionsRef.current.removed.delete(picked);
+    pendingBallActionsRef.current.set(picked, {
+      action: "ADD",
+      timestamp: Date.now(),
+    });
 
     setGameState((prev) => {
       if (!prev) return prev;
@@ -633,7 +651,7 @@ export default function AdminOrganizerPage() {
     announceBallVoice(picked, soundEnabled);
 
     try {
-      await postAction({ action: "TOGGLE_BALL", ballNumber: picked });
+      await postAction({ action: "TOGGLE_BALL", ballNumber: picked, mode: "ADD" });
     } finally {
       setTogglingBall(null);
     }
