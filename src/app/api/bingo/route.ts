@@ -121,6 +121,9 @@ function buildSaasSummary(requestedEventId?: string | null, organizerId?: string
   };
 }
 
+// Máximo 30s por petición: si algo se cuelga, falla rápido en vez de ocupar 300s
+export const maxDuration = 30;
+
 export async function GET(req: NextRequest) {
   await syncFromSupabase();
   const { searchParams } = new URL(req.url);
@@ -197,16 +200,22 @@ export async function GET(req: NextRequest) {
           pc.sessionLock = { ...lockObj };
         }
         writeGameState(state, state.eventId);
-        await syncToSupabase();
+        await syncToSupabase(undefined, state.eventId);
       } else if (primaryLock.deviceId === deviceId) {
-        for (const pc of playerCards) {
-          if (pc.sessionLock) {
-            pc.sessionLock.lastSeenAt = new Date().toISOString();
-            pc.sessionLock.ipAddress = clientIp;
+        // Solo refrescar lastSeenAt (y persistir) si pasaron más de 30s, para no escribir en cada sondeo
+        const lastSeenMs = primaryLock.lastSeenAt
+          ? new Date(primaryLock.lastSeenAt).getTime()
+          : 0;
+        if (Date.now() - lastSeenMs > 30000) {
+          for (const pc of playerCards) {
+            if (pc.sessionLock) {
+              pc.sessionLock.lastSeenAt = new Date().toISOString();
+              pc.sessionLock.ipAddress = clientIp;
+            }
           }
+          writeGameState(state, state.eventId);
+          syncToSupabase(undefined, state.eventId).catch(() => {});
         }
-        writeGameState(state, state.eventId);
-        await syncToSupabase();
       } else {
         accessAllowed = false;
       }

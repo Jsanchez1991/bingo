@@ -313,7 +313,21 @@ function getSupabaseCredentials(): { url: string; key: string } | null {
  * Sincroniza el estado desde Supabase hacia la caché en memoria y archivo local.
  * Prioriza las tablas relacionales optimizadas (organizers, events, cards, claims).
  */
-export async function syncFromSupabase(): Promise<void> {
+let syncFromSupabaseInFlight: Promise<void> | null = null;
+
+/**
+ * Evita que decenas de peticiones simultáneas descarguen toda la base a la vez:
+ * todas las llamadas concurrentes comparten una sola lectura en curso.
+ */
+export function syncFromSupabase(): Promise<void> {
+  if (syncFromSupabaseInFlight) return syncFromSupabaseInFlight;
+  syncFromSupabaseInFlight = doSyncFromSupabase().finally(() => {
+    syncFromSupabaseInFlight = null;
+  });
+  return syncFromSupabaseInFlight;
+}
+
+async function doSyncFromSupabase(): Promise<void> {
   const creds = getSupabaseCredentials();
   if (!creds) return;
   try {
@@ -500,8 +514,8 @@ export async function syncToSupabase(db?: SaasDatabase, specificEventId?: string
       ? [payload.events[specificEventId]]
       : Object.values(payload.events);
 
-    for (const targetEvent of eventsToSync) {
-      if (!targetEvent) continue;
+    await Promise.all(eventsToSync.map(async (targetEvent) => {
+      if (!targetEvent) return;
       await supabase.from("events").upsert({
         id: targetEvent.eventId,
         organizer_id: targetEvent.organizerId,
@@ -570,7 +584,7 @@ export async function syncToSupabase(db?: SaasDatabase, specificEventId?: string
           await supabase.from("claims").upsert(claimsPayload);
         }
       }
-    }
+    }));
 
     // 2. Mantener también la tabla de respaldo monolítica por seguridad sin bloquear
     fetch(`${creds.url}/rest/v1/bingo_store`, {
