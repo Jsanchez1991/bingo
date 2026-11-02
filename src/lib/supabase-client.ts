@@ -11,8 +11,8 @@ const supabaseAnonKey =
   process.env.SUPABASE_SERVICE_ROLE_KEY ||
   "sb_publishable_RGg6IQZyuGEsJ-gUQykXHQ_ppOGWDr6";
 
-// Límite de tiempo por llamada HTTP a Supabase: si tarda más, falla rápido en vez de colgar la función 300s
-const SUPABASE_FETCH_TIMEOUT_MS = 10000;
+// Límite de tiempo por llamada HTTP a Supabase: 4.5s para evitar que cualquier endpoint en Vercel caiga en 504
+const SUPABASE_FETCH_TIMEOUT_MS = 4500;
 
 const fetchWithTimeout: typeof fetch = (input, init) => {
   if (typeof AbortSignal !== "undefined" && typeof AbortSignal.timeout === "function") {

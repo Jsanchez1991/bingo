@@ -203,6 +203,7 @@ export default function PlayerBingoPage() {
                 announceBallVoice(lastBall, soundEnabled);
                 prevLastBallRef.current = lastBall;
               }
+              const incomingTieBreak = payload.new.prizes_by_table?.__tieBreak;
               return {
                 ...prev,
                 activeTable: payload.new.active_table,
@@ -211,6 +212,7 @@ export default function PlayerBingoPage() {
                 drawnBalls: newDrawn,
                 isPausedForVerification: payload.new.is_paused_for_verification,
                 status: payload.new.status,
+                tieBreak: incomingTieBreak !== undefined ? incomingTieBreak : prev.tieBreak,
               };
             });
           }

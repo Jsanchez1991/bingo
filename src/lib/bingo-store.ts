@@ -331,19 +331,20 @@ async function doSyncFromSupabase(): Promise<void> {
   const creds = getSupabaseCredentials();
   if (!creds) return;
   try {
-    // Si ya cargó en memoria recientemente (en los últimos 3 segundos), no spamear Supabase
+    // Si ya cargó en memoria recientemente (en los últimos 5 segundos), no spamear Supabase
     const now = Date.now();
-    if (memoryCacheDb && (now - lastMemoryCacheTime < 3000)) {
+    if (memoryCacheDb && (now - lastMemoryCacheTime < 5000)) {
       return;
     }
 
     // Intentar leer de las nuevas tablas relacionales optimizadas
-    const [orgsRes, eventsRes, cardsRes, claimsRes, sellersRes] = await Promise.all([
+    const [orgsRes, eventsRes, cardsRes, claimsRes, sellersRes, winnersRes] = await Promise.all([
       supabase.from("organizers").select("*"),
       supabase.from("events").select("*"),
       supabase.from("cards").select("*"),
       supabase.from("claims").select("*"),
       supabase.from("event_sellers").select("*"),
+      supabase.from("winners_history").select("*").order("confirmed_at", { ascending: false }),
     ]);
 
     if (
@@ -418,6 +419,27 @@ async function doSyncFromSupabase(): Promise<void> {
             createdAt: s.created_at,
           }));
 
+        const evWinners: WinnerRecord[] = (winnersRes.data || [])
+          .filter((w: any) => w.event_id === ev.id)
+          .map((w: any) => ({
+            id: w.id,
+            tableIndex: w.table_index,
+            stage: w.stage,
+            patternType: w.pattern_type || w.stage,
+            prizeName: w.prize_name,
+            cardNumber: w.card_number,
+            buyerName: w.buyer_name,
+            patternName: w.pattern_name,
+            wonViaTieBreak: Boolean(w.won_via_tie_break),
+            highBallNumber: w.high_ball_number ?? null,
+            confirmedAt: w.confirmed_at,
+          }));
+
+        // Extraer tieBreak y selectionLinks guardados en prizes_by_table.__meta (o preservar memoria)
+        const rawPrizesByTable = ev.prizes_by_table || {};
+        const { __tieBreak, __selectionLinks, ...cleanPrizesByTable } = rawPrizesByTable;
+        const prevInMemory = memoryCacheDb?.events?.[ev.id];
+
         eventsMap[ev.id] = {
           eventId: ev.id,
           organizerId: ev.organizer_id,
@@ -430,7 +452,7 @@ async function doSyncFromSupabase(): Promise<void> {
             dateTimeText: ev.date_time_text || "",
             phones: ev.phones || "",
             priceText: ev.price_text || "$2.00",
-            prizesByTable: ev.prizes_by_table || {},
+            prizesByTable: cleanPrizesByTable,
             prizesByTableStage: ev.prizes_by_table_stage || {},
           },
           activeTable: ev.active_table || 1,
@@ -440,9 +462,19 @@ async function doSyncFromSupabase(): Promise<void> {
           isPausedForVerification: ev.is_paused_for_verification || false,
           cards: evCards,
           claims: evClaims,
-          tieBreak: null,
-          winnersHistory: [],
+          tieBreak:
+            __tieBreak !== undefined
+              ? __tieBreak
+              : prevInMemory?.tieBreak || null,
+          winnersHistory:
+            evWinners.length > 0
+              ? evWinners
+              : prevInMemory?.winnersHistory || [],
           sellers: evSellers,
+          selectionLinks:
+            __selectionLinks !== undefined
+              ? __selectionLinks
+              : prevInMemory?.selectionLinks || [],
           pregeneratedPoolSize: ev.pregenerated_pool_size || evCards.length,
           updatedAt: ev.updated_at,
         };
@@ -503,67 +535,98 @@ async function doSyncFromSupabase(): Promise<void> {
 
 /**
  * Guarda y actualiza entidades específicas en las tablas relacionales de Supabase.
+ * Si includeCards es false, solo sincroniza el evento y los reclamos activos en pocos milisegundos,
+ * evitando subir 100 cartones pesados en cada bolilla cantada.
  */
-export async function syncToSupabase(db?: SaasDatabase, specificEventId?: string): Promise<void> {
+export async function syncToSupabase(
+  db?: SaasDatabase,
+  specificEventId?: string,
+  includeCards: boolean = false
+): Promise<void> {
   const creds = getSupabaseCredentials();
   const payload = db || memoryCacheDb;
   if (!creds || !payload) return;
   try {
-    // 1. Guardar todos los eventos modificados en las tablas relacionales
-    const eventsToSync = specificEventId && payload.events[specificEventId]
-      ? [payload.events[specificEventId]]
-      : Object.values(payload.events);
+    // 1. Si no se especificó evento, priorizar el evento activo por defecto para no escribir todos los eventos a la vez
+    const eventsToSync =
+      specificEventId && payload.events[specificEventId]
+        ? [payload.events[specificEventId]]
+        : payload.activeDefaultEventId && payload.events[payload.activeDefaultEventId]
+        ? [payload.events[payload.activeDefaultEventId]]
+        : Object.values(payload.events);
 
-    await Promise.all(eventsToSync.map(async (targetEvent) => {
-      if (!targetEvent) return;
-      await supabase.from("events").upsert({
-        id: targetEvent.eventId,
-        organizer_id: targetEvent.organizerId,
-        status: targetEvent.status,
-        title: targetEvent.event.title,
-        organized_by: targetEvent.event.organizedBy,
-        address: targetEvent.event.address,
-        note: targetEvent.event.note,
-        date_time_text: targetEvent.event.dateTimeText,
-        phones: targetEvent.event.phones,
-        price_text: targetEvent.event.priceText,
-        active_table: targetEvent.activeTable,
-        active_stage: targetEvent.activeStage,
-        current_prize_name: targetEvent.currentPrizeName,
-        drawn_balls: targetEvent.drawnBalls,
-        is_paused_for_verification: targetEvent.isPausedForVerification,
-        prizes_by_table: targetEvent.event.prizesByTable,
-        prizes_by_table_stage: targetEvent.event.prizesByTableStage,
-        pregenerated_pool_size: targetEvent.pregeneratedPoolSize || targetEvent.cards.length,
-        updated_at: new Date().toISOString(),
-      });
+    await Promise.all(
+      eventsToSync.map(async (targetEvent) => {
+        if (!targetEvent) return;
+        await supabase.from("events").upsert({
+          id: targetEvent.eventId,
+          organizer_id: targetEvent.organizerId,
+          status: targetEvent.status,
+          title: targetEvent.event.title,
+          organized_by: targetEvent.event.organizedBy,
+          address: targetEvent.event.address,
+          note: targetEvent.event.note,
+          date_time_text: targetEvent.event.dateTimeText,
+          phones: targetEvent.event.phones,
+          price_text: targetEvent.event.priceText,
+          active_table: targetEvent.activeTable,
+          active_stage: targetEvent.activeStage,
+          current_prize_name: targetEvent.currentPrizeName,
+          drawn_balls: targetEvent.drawnBalls,
+          is_paused_for_verification: targetEvent.isPausedForVerification,
+          prizes_by_table: {
+            ...(targetEvent.event.prizesByTable || {}),
+            __tieBreak: targetEvent.tieBreak || null,
+            __selectionLinks: targetEvent.selectionLinks || [],
+          },
+          prizes_by_table_stage: targetEvent.event.prizesByTableStage,
+          pregenerated_pool_size:
+            targetEvent.pregeneratedPoolSize || targetEvent.cards.length,
+          updated_at: new Date().toISOString(),
+        });
 
-      // Sincronizar también cartones si existen
-      if (targetEvent.cards && targetEvent.cards.length > 0) {
-        const cardsChunk = targetEvent.cards.slice(0, 100).map((c) => ({
-          id: `${targetEvent.eventId}_${c.cardNumber}`,
-          event_id: targetEvent.eventId,
-          card_number: c.cardNumber,
-          secret_token: c.secretToken,
-          buyer_name: c.buyerName || "",
-          buyer_phone: c.buyerPhone || "",
-          status: c.status || "DISPONIBLE",
-          tables_data: c.tables,
-          marked_by_table: c.markedByTable,
-          session_lock: c.sessionLock,
-          assigned_seller_id: c.assignedSellerId,
-          sold_by_seller_id: c.soldBySellerId,
-          sold_by_seller_name: c.soldBySellerName,
-          created_at: c.createdAt || new Date().toISOString(),
-        }));
-        await supabase.from("cards").upsert(cardsChunk);
-      }
+        // Sincronizar historial de ganadores en winners_history
+        if (targetEvent.winnersHistory && targetEvent.winnersHistory.length > 0) {
+          const winnersPayload = targetEvent.winnersHistory.map((w) => ({
+            id: w.id,
+            event_id: targetEvent.eventId,
+            table_index: w.tableIndex,
+            stage: w.stage,
+            pattern_type: w.patternType || w.stage,
+            prize_name: w.prizeName,
+            card_number: w.cardNumber,
+            buyer_name: w.buyerName,
+            pattern_name: w.patternName,
+            won_via_tie_break: w.wonViaTieBreak,
+            high_ball_number: w.highBallNumber,
+            confirmed_at: w.confirmedAt,
+          }));
+          await supabase.from("winners_history").upsert(winnersPayload);
+        }
 
-      // Sincronizar los reclamos (claims) en la tabla relacional de Supabase para que persistan
-      if (targetEvent.claims) {
-        if (targetEvent.claims.length === 0) {
-          await supabase.from("claims").delete().eq("event_id", targetEvent.eventId);
-        } else {
+        // Solo sincronizar el lote de cartones cuando realmente cambiaron (creación, venta o marcas)
+        if (includeCards && targetEvent.cards && targetEvent.cards.length > 0) {
+          const cardsChunk = targetEvent.cards.slice(0, 100).map((c) => ({
+            id: `${targetEvent.eventId}_${c.cardNumber}`,
+            event_id: targetEvent.eventId,
+            card_number: c.cardNumber,
+            secret_token: c.secretToken,
+            buyer_name: c.buyerName || "",
+            buyer_phone: c.buyerPhone || "",
+            status: c.status || "DISPONIBLE",
+            tables_data: c.tables,
+            marked_by_table: c.markedByTable,
+            session_lock: c.sessionLock,
+            assigned_seller_id: c.assignedSellerId,
+            sold_by_seller_id: c.soldBySellerId,
+            sold_by_seller_name: c.soldBySellerName,
+            created_at: c.createdAt || new Date().toISOString(),
+          }));
+          await supabase.from("cards").upsert(cardsChunk);
+        }
+
+        // Sincronizar los reclamos (claims) cuando existen
+        if (targetEvent.claims && targetEvent.claims.length > 0) {
           const claimsPayload = targetEvent.claims.map((cl) => ({
             id: cl.id,
             event_id: targetEvent.eventId,
@@ -583,25 +646,8 @@ export async function syncToSupabase(db?: SaasDatabase, specificEventId?: string
           }));
           await supabase.from("claims").upsert(claimsPayload);
         }
-      }
-    }));
-
-    // 2. Mantener también la tabla de respaldo monolítica por seguridad sin bloquear
-    fetch(`${creds.url}/rest/v1/bingo_store`, {
-      method: "POST",
-      headers: {
-        apikey: creds.key,
-        Authorization: `Bearer ${creds.key}`,
-        "Content-Type": "application/json",
-        Prefer: "resolution=merge-duplicates",
-      },
-      body: JSON.stringify({
-        id: "main",
-        payload,
-        updated_at: new Date().toISOString(),
-      }),
-      cache: "no-store",
-    }).catch(() => {});
+      })
+    );
   } catch {}
 }
 

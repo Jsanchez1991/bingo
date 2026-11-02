@@ -200,13 +200,20 @@ export async function GET(req: NextRequest) {
           pc.sessionLock = { ...lockObj };
         }
         writeGameState(state, state.eventId);
-        await syncToSupabase(undefined, state.eventId);
+        Promise.all(
+          playerCards.map((pc) =>
+            supabase
+              .from("cards")
+              .update({ session_lock: pc.sessionLock })
+              .eq("id", `${state.eventId}_${pc.cardNumber}`)
+          )
+        ).catch(() => {});
       } else if (primaryLock.deviceId === deviceId) {
-        // Solo refrescar lastSeenAt (y persistir) si pasaron más de 30s, para no escribir en cada sondeo
+        // Solo refrescar lastSeenAt si pasaron más de 60s, sin bloquear
         const lastSeenMs = primaryLock.lastSeenAt
           ? new Date(primaryLock.lastSeenAt).getTime()
           : 0;
-        if (Date.now() - lastSeenMs > 30000) {
+        if (Date.now() - lastSeenMs > 60000) {
           for (const pc of playerCards) {
             if (pc.sessionLock) {
               pc.sessionLock.lastSeenAt = new Date().toISOString();
@@ -214,7 +221,6 @@ export async function GET(req: NextRequest) {
             }
           }
           writeGameState(state, state.eventId);
-          syncToSupabase(undefined, state.eventId).catch(() => {});
         }
       } else {
         accessAllowed = false;
@@ -493,6 +499,7 @@ async function handlePostAction(req: NextRequest): Promise<NextResponse> {
         db.activeDefaultEventId = newEventId;
       }
       writeSaasDb(db);
+      syncToSupabase(db, newEventId, true).catch(() => {});
 
       const summary = buildSaasSummary(newEventId, organizer.id);
       return NextResponse.json({
@@ -860,6 +867,7 @@ async function handlePostAction(req: NextRequest): Promise<NextResponse> {
       }
 
       writeGameState(targetState, targetState.eventId);
+      syncToSupabase(undefined, targetState.eventId, true).catch(() => {});
       return NextResponse.json({ ok: true, state: targetState });
     }
 
@@ -881,6 +889,7 @@ async function handlePostAction(req: NextRequest): Promise<NextResponse> {
         poolSize
       );
       writeGameState(targetState, targetState.eventId);
+      syncToSupabase(undefined, targetState.eventId, true).catch(() => {});
 
       const summary = buildSaasSummary(targetState.eventId);
       return NextResponse.json({
@@ -939,6 +948,7 @@ async function handlePostAction(req: NextRequest): Promise<NextResponse> {
       }
 
       writeGameState(targetState, targetState.eventId);
+      syncToSupabase(undefined, targetState.eventId, true).catch(() => {});
       return NextResponse.json({
         ok: true,
         updatedCount,
@@ -1133,6 +1143,26 @@ async function handlePostAction(req: NextRequest): Promise<NextResponse> {
       linkSession.completedAt = new Date().toISOString();
 
       writeGameState(targetState, targetState.eventId);
+      await Promise.all(
+        chosenCards.map((c) =>
+          supabase.from("cards").upsert({
+            id: `${targetState.eventId}_${c.cardNumber}`,
+            event_id: targetState.eventId,
+            card_number: c.cardNumber,
+            secret_token: c.secretToken,
+            buyer_name: c.buyerName || "",
+            buyer_phone: c.buyerPhone || "",
+            status: c.status || "VENDIDA",
+            tables_data: c.tables,
+            marked_by_table: c.markedByTable,
+            session_lock: c.sessionLock,
+            assigned_seller_id: c.assignedSellerId,
+            sold_by_seller_id: c.soldBySellerId,
+            sold_by_seller_name: c.soldBySellerName,
+            created_at: c.createdAt || new Date().toISOString(),
+          })
+        )
+      );
 
       return NextResponse.json({
         ok: true,
@@ -1297,6 +1327,10 @@ async function handlePostAction(req: NextRequest): Promise<NextResponse> {
         list.push(Number(number));
       }
       writeGameState(targetState, targetState.eventId);
+      await supabase
+        .from("cards")
+        .update({ marked_by_table: card.markedByTable })
+        .eq("id", `${targetState.eventId}_${card.cardNumber}`);
       const playerCards = targetState.cards.filter(
         (c) => c.secretToken === card.secretToken
       );
@@ -1319,6 +1353,10 @@ async function handlePostAction(req: NextRequest): Promise<NextResponse> {
       if (card && Array.isArray(markedNumbers)) {
         card.markedByTable[String(tableIndex)] = markedNumbers.map(Number);
         writeGameState(targetState, targetState.eventId);
+        await supabase
+          .from("cards")
+          .update({ marked_by_table: card.markedByTable })
+          .eq("id", `${targetState.eventId}_${card.cardNumber}`);
       }
       return NextResponse.json({ ok: true });
     }
@@ -1792,12 +1830,22 @@ async function handlePostAction(req: NextRequest): Promise<NextResponse> {
         (c) => c.cardNumber === cardNumber || c.secretToken === secretToken
       );
       if (targetCard) {
+        const unlockedCards: BingoCardSheet[] = [];
         for (const c of state.cards) {
           if (c.secretToken === targetCard.secretToken) {
             c.sessionLock = null;
+            unlockedCards.push(c);
           }
         }
         writeGameState(state, state.eventId);
+        await Promise.all(
+          unlockedCards.map((uc) =>
+            supabase
+              .from("cards")
+              .update({ session_lock: null })
+              .eq("id", `${state.eventId}_${uc.cardNumber}`)
+          )
+        );
       }
       return NextResponse.json({ ok: true, state });
     }
@@ -1962,6 +2010,26 @@ async function handlePostAction(req: NextRequest): Promise<NextResponse> {
       }
 
       writeGameState(targetState, targetState.eventId);
+      await Promise.all(
+        createdCards.map((c) =>
+          supabase.from("cards").upsert({
+            id: `${targetState.eventId}_${c.cardNumber}`,
+            event_id: targetState.eventId,
+            card_number: c.cardNumber,
+            secret_token: c.secretToken,
+            buyer_name: c.buyerName || "",
+            buyer_phone: c.buyerPhone || "",
+            status: c.status || "VENDIDA",
+            tables_data: c.tables,
+            marked_by_table: c.markedByTable,
+            session_lock: c.sessionLock,
+            assigned_seller_id: c.assignedSellerId,
+            sold_by_seller_id: c.soldBySellerId,
+            sold_by_seller_name: c.soldBySellerName,
+            created_at: c.createdAt || new Date().toISOString(),
+          })
+        )
+      );
       return NextResponse.json({
         ok: true,
         newCard: createdCards[0],
@@ -2014,10 +2082,12 @@ async function handlePostAction(req: NextRequest): Promise<NextResponse> {
       const winnerId = String(body.winnerId || "");
       if (action === "CLEAR_WINNERS" || !winnerId) {
         state.winnersHistory = [];
+        await supabase.from("winners_history").delete().eq("event_id", state.eventId);
       } else {
         state.winnersHistory = state.winnersHistory.filter(
           (w) => w.id !== winnerId
         );
+        await supabase.from("winners_history").delete().eq("id", winnerId);
       }
       writeGameState(state, state.eventId);
       return NextResponse.json({ ok: true, state });
