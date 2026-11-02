@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { AccessToken } from "livekit-server-sdk";
-import { readGameState, findEventByCardToken } from "@/lib/bingo-store";
+import { readGameState, findEventByCardToken, syncFromSupabase } from "@/lib/bingo-store";
+import { supabase } from "@/lib/supabase-client";
 
 export async function GET(req: NextRequest) {
   try {
@@ -28,19 +29,43 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // Validación de seguridad para jugadores: el token debe existir en el evento
+    // Validación de seguridad para jugadores: verificar tanto en Supabase como en memoria
     if (role === "viewer" && token) {
-      const found = findEventByCardToken(token);
-      if (!found && room) {
-        // Fallback si la sala existe
-        const state = readGameState(room);
-        const hasCard = state?.cards?.some((c) => c.secretToken === token || c.cardNumber === token);
-        if (!hasCard) {
-          return NextResponse.json(
-            { error: "Cartón no autorizado para esta sala de bingo." },
-            { status: 403 }
-          );
+      let authorized = false;
+
+      // 1. Consulta directa y rápida en Supabase por secret_token o card_number
+      try {
+        const { data: cardMatches } = await supabase
+          .from("cards")
+          .select("id")
+          .or(`secret_token.eq.${token},card_number.eq.${token}`)
+          .limit(1);
+
+        if (cardMatches && cardMatches.length > 0) {
+          authorized = true;
         }
+      } catch {}
+
+      // 2. Fallback sincronizando el estado si aún no se encontró
+      if (!authorized) {
+        await syncFromSupabase();
+        const found = findEventByCardToken(token);
+        if (found) {
+          authorized = true;
+        } else if (room) {
+          const state = readGameState(room);
+          const hasCard = state?.cards?.some(
+            (c) => c.secretToken === token || c.cardNumber === token
+          );
+          if (hasCard) authorized = true;
+        }
+      }
+
+      if (!authorized) {
+        return NextResponse.json(
+          { error: "Cartón no autorizado para esta sala de bingo." },
+          { status: 403 }
+        );
       }
     }
 
@@ -49,8 +74,6 @@ export async function GET(req: NextRequest) {
       name: searchParams.get("name") || identity,
       ttl: "4h",
     });
-
-    const isPublisher = role === "publisher";
 
     at.addGrant({
       room,
