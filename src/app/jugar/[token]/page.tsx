@@ -262,8 +262,14 @@ export default function PlayerBingoPage() {
       )
       .subscribe();
 
-    // Sondeo de respaldo relajado a 5 segundos (en lugar de 1.5s) para liberar la red del celular
-    const timer = setInterval(fetchLiveState, 5000);
+    // Sondeo de respaldo cada 12 segundos (las bolillas y desempates ya llegan al instante vía WebSockets Realtime).
+    // Además, si el celular tiene la pantalla apagada o la pestaña en segundo plano, no consume servidor.
+    const timer = setInterval(() => {
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+        return;
+      }
+      fetchLiveState();
+    }, 12000);
     return () => {
       clearInterval(timer);
       supabase.removeChannel(channel);

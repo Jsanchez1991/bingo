@@ -227,8 +227,17 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // Optimización de alta concurrencia (100 - 1.000+ jugadores):
+    // El jugador ya recibe sus propios cartones en `playerCards`. No enviar los otros 100/500 cartones ni los vendedores de toda la sala.
+    const lightPlayerState = {
+      ...state,
+      cards: [],
+      sellers: [],
+      selectionLinks: [],
+    };
+
     return NextResponse.json({
-      state,
+      state: lightPlayerState,
       card: playerCards[0],
       playerCards,
       accessAllowed,
@@ -252,8 +261,17 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  let clonedAction = "";
+  try {
+    const clonedBody = await req.clone().json();
+    clonedAction = String(clonedBody?.action || "");
+  } catch {}
   const res = await handlePostAction(req);
-  await syncToSupabase();
+  // Cuando 100-1.000 jugadores pintan sus casillas a la vez, solo actualizan su propia fila en `cards`.
+  // No sobreescribir la fila `events` en cada clic de jugador para evitar tormentas de WebSockets Realtime.
+  if (clonedAction !== "SYNC_SHEET_MARKS" && clonedAction !== "MARK_NUMBER") {
+    await syncToSupabase();
+  }
   return res;
 }
 
@@ -1338,7 +1356,7 @@ async function handlePostAction(req: NextRequest): Promise<NextResponse> {
         ok: true,
         card,
         playerCards,
-        state: targetState,
+        state: { ...targetState, cards: [], sellers: [], selectionLinks: [] },
       });
     }
 
@@ -1371,7 +1389,10 @@ async function handlePostAction(req: NextRequest): Promise<NextResponse> {
         requestedEventId
       );
       const updatedState = readGameState(result.eventId || requestedEventId);
-      return NextResponse.json({ ...result, state: updatedState });
+      return NextResponse.json({
+        ...result,
+        state: { ...updatedState, cards: [], sellers: [], selectionLinks: [] },
+      });
     }
 
     // 6. Simulación rápida de empate (3 cartones diferentes completan línea en el sorteo)

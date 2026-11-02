@@ -338,12 +338,12 @@ async function doSyncFromSupabase(): Promise<void> {
       return;
     }
 
-    // Intentar leer de las nuevas tablas relacionales optimizadas
+    // Intentar leer de las nuevas tablas relacionales optimizadas (rango ampliado hasta 5.000 cartones para salas masivas)
     const [orgsRes, eventsRes, cardsRes, claimsRes, sellersRes, winnersRes] = await Promise.all([
       supabase.from("organizers").select("*"),
       supabase.from("events").select("*"),
-      supabase.from("cards").select("*"),
-      supabase.from("claims").select("*"),
+      supabase.from("cards").select("*").range(0, 4999),
+      supabase.from("claims").select("*").range(0, 1999),
       supabase.from("event_sellers").select("*"),
       supabase.from("winners_history").select("*").order("confirmed_at", { ascending: false }),
     ]);
@@ -603,9 +603,9 @@ export async function syncToSupabase(
           await supabase.from("winners_history").upsert(winnersPayload);
         }
 
-        // Solo sincronizar el lote de cartones cuando realmente cambiaron (creación, venta o marcas)
+        // Solo sincronizar el lote de cartones cuando realmente cambiaron (creación o regeneración de talonario) en bloques de 150
         if (includeCards && targetEvent.cards && targetEvent.cards.length > 0) {
-          const cardsChunk = targetEvent.cards.slice(0, 100).map((c) => ({
+          const allCardsPayload = targetEvent.cards.map((c) => ({
             id: `${targetEvent.eventId}_${c.cardNumber}`,
             event_id: targetEvent.eventId,
             card_number: c.cardNumber,
@@ -621,7 +621,12 @@ export async function syncToSupabase(
             sold_by_seller_name: c.soldBySellerName,
             created_at: c.createdAt || new Date().toISOString(),
           }));
-          await supabase.from("cards").upsert(cardsChunk);
+          const chunkSize = 150;
+          for (let i = 0; i < allCardsPayload.length; i += chunkSize) {
+            await supabase
+              .from("cards")
+              .upsert(allCardsPayload.slice(i, i + chunkSize));
+          }
         }
 
         // Sincronizar los reclamos (claims) cuando existen
