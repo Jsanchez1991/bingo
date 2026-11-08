@@ -1381,17 +1381,21 @@ async function handlePostAction(req: NextRequest): Promise<NextResponse> {
 
     // 5. Jugador envía "¡BINGO! Enviar Verificación" de una hoja específica (`cardNumber`)
     if (action === "SUBMIT_CLAIM") {
-      const { token, cardNumber, tableIndex } = body;
+      const { token, cardNumber, tableIndex, markedNumbers } = body;
       const result = submitPlayerClaim(
         token,
         Number(tableIndex),
         cardNumber,
-        requestedEventId
+        requestedEventId,
+        Array.isArray(markedNumbers) ? markedNumbers : undefined
       );
       const updatedState = readGameState(result.eventId || requestedEventId);
+      const isOrganizerScan = Boolean(requestedEventId && !token?.startsWith("juego-"));
       return NextResponse.json({
         ...result,
-        state: { ...updatedState, cards: [], sellers: [], selectionLinks: [] },
+        state: isOrganizerScan
+          ? updatedState
+          : { ...updatedState, cards: [], sellers: [], selectionLinks: [] },
       });
     }
 

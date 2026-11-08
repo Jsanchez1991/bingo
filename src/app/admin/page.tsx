@@ -430,7 +430,15 @@ export default function AdminOrganizerPage() {
           setSelectedClaimId(data.claim.id);
         }
         if (data.state) {
-          setGameState(data.state);
+          setGameState((prev) => {
+            if (!prev) return data.state;
+            return {
+              ...data.state,
+              cards: data.state.cards && data.state.cards.length > 0 ? data.state.cards : prev.cards,
+              sellers: data.state.sellers && data.state.sellers.length > 0 ? data.state.sellers : prev.sellers,
+              selectionLinks: data.state.selectionLinks && data.state.selectionLinks.length > 0 ? data.state.selectionLinks : prev.selectionLinks,
+            };
+          });
         }
         announceCustomVoice(
           `¡Cartón verificado en cabina!`,
@@ -2222,16 +2230,31 @@ export default function AdminOrganizerPage() {
                 </div>
 
                 <div className="text-slate-950">
-                  <BingoTableCard
-                    tableIndex={selectedClaim.tableIndex}
-                    serialCode={`${selectedClaim.cardNumber}-${selectedClaim.tableIndex}`}
-                    grid={selectedClaim.gridSnapshot}
-                    markedNumbers={selectedClaim.markedNumbers}
-                    drawnBalls={gameState.drawnBalls}
-                    isActiveTable={true}
-                    isZoomed={false}
-                    winningCells={selectedClaim.validation.winningCells}
-                  />
+                  {(() => {
+                    // Combinar las marcas del jugador con todas las bolillas oficiales cantadas que estén en su tabla
+                    // para que el organizador SIEMPRE vea pintados todos los números salidos aunque el jugador no haya marcado
+                    const officialSet = new Set(gameState.drawnBalls);
+                    const autoMarked: number[] = [...(selectedClaim.markedNumbers || [])];
+                    for (const row of selectedClaim.gridSnapshot) {
+                      for (const val of row) {
+                        if (val > 0 && officialSet.has(val) && !autoMarked.includes(val)) {
+                          autoMarked.push(val);
+                        }
+                      }
+                    }
+                    return (
+                      <BingoTableCard
+                        tableIndex={selectedClaim.tableIndex}
+                        serialCode={`${selectedClaim.cardNumber}-${selectedClaim.tableIndex}`}
+                        grid={selectedClaim.gridSnapshot}
+                        markedNumbers={autoMarked}
+                        drawnBalls={gameState.drawnBalls}
+                        isActiveTable={true}
+                        isZoomed={false}
+                        winningCells={selectedClaim.validation.winningCells}
+                      />
+                    );
+                  })()}
                 </div>
               </div>
             )}

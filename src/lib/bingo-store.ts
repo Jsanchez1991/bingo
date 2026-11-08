@@ -1489,7 +1489,8 @@ export function submitPlayerClaim(
   tokenOrCardNumber: string,
   tableIndex: number,
   specificCardNumber?: string,
-  eventId?: string
+  eventId?: string,
+  incomingMarkedNumbers?: number[]
 ): { ok: boolean; message: string; claim?: BingoClaim; eventId?: string } {
   const found = !eventId ? findEventByCardToken(tokenOrCardNumber) : null;
   const state = found ? found.state : readGameState(eventId);
@@ -1513,7 +1514,29 @@ export function submitPlayerClaim(
     .filter((w) => w.cardNumber === card.cardNumber && w.tableIndex === tableIndex)
     .map((w) => w.patternType || w.stage);
 
-  const markedNumbers = card.markedByTable[String(tableIndex)] || [];
+  // Combinar los números marcados por el jugador (en servidor + enviados desde el celular)
+  // más TODOS los números de esta tabla que YA salieron oficialmente en el bolillero.
+  // Así, aunque el participante no haya anotado nada o juegue en cartón físico, el organizador siempre ve pintados los números salidos.
+  const storedMarks = card.markedByTable[String(tableIndex)] || [];
+  const clientMarks = Array.isArray(incomingMarkedNumbers)
+    ? incomingMarkedNumbers.map(Number)
+    : [];
+  const drawnSet = new Set(state.drawnBalls);
+  const autoMarkedFromOfficial: number[] = [];
+  for (let r = 0; r < 5; r++) {
+    for (let c = 0; c < 5; c++) {
+      const val = tableObj.grid[r][c];
+      if (val > 0 && drawnSet.has(val)) {
+        autoMarkedFromOfficial.push(val);
+      }
+    }
+  }
+
+  const markedNumbers = Array.from(
+    new Set([...storedMarks, ...clientMarks, ...autoMarkedFromOfficial])
+  );
+  card.markedByTable[String(tableIndex)] = markedNumbers;
+
   const validation = validateTablePattern(
     tableObj.grid,
     tableIndex,

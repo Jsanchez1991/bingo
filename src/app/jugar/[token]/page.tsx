@@ -412,6 +412,8 @@ export default function PlayerBingoPage() {
   const handleSendClaim = async (cardNumber: string, tableIndex: number) => {
     if (!gameState || submittingCardNum) return;
     setSubmittingCardNum(cardNumber);
+    const targetSheet = playerCards.find((c) => c.cardNumber === cardNumber);
+    const currentMarked = targetSheet?.markedByTable[String(tableIndex)] || [];
     try {
       const res = await fetch("/api/bingo", {
         method: "POST",
@@ -421,6 +423,7 @@ export default function PlayerBingoPage() {
           token,
           cardNumber,
           tableIndex,
+          markedNumbers: currentMarked,
         }),
       });
       const data = await res.json();
