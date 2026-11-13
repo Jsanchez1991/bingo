@@ -1,6 +1,7 @@
 export type StageType =
   | "LINEA"
   | "PUNTA"
+  | "CODO"
   | "ESQUINAS"
   | "BINGO_LOCO"
   | "LETRA"
@@ -32,6 +33,13 @@ export const STAGES: Record<StageType, StageInfo> = {
     shortLabel: "PUNTA",
     description: "Acierta cualquiera de las esquinas/puntas de la tabla",
     icon: "📐",
+  },
+  CODO: {
+    id: "CODO",
+    label: "Codo (3 Números en Esquina)",
+    shortLabel: "CODO",
+    description: "Completa los 3 números que forman un codo en cualquiera de las 4 esquinas",
+    icon: "🦾",
   },
   ESQUINAS: {
     id: "ESQUINAS",
@@ -87,6 +95,7 @@ export const STAGES: Record<StageType, StageInfo> = {
 export const STAGE_ORDER: StageType[] = [
   "LINEA",
   "PUNTA",
+  "CODO",
   "ESQUINAS",
   "LINEA_Y_PUNTA",
   "LINEA_Y_ESQUINAS",
@@ -441,6 +450,55 @@ export function validateTablePattern(
       patternType: "PUNTA",
       winningCells: [],
       missingOfficialNumbers: corners.map(({ coord: [r, c] }) => grid[r][c]),
+    };
+  }
+
+  // 2-B. MODO CODO (3 números formando un codo en cualquiera de las 4 esquinas)
+  if (stage === "CODO") {
+    const rawElbows: { name: string; cells: [number, number][] }[] = [
+      { name: "Codo Superior Izquierdo", cells: [[0, 0], [0, 1], [1, 0]] },
+      { name: "Codo Superior Derecho", cells: [[0, 4], [0, 3], [1, 4]] },
+      { name: "Codo Inferior Izquierdo", cells: [[4, 0], [3, 0], [4, 1]] },
+      { name: "Codo Inferior Derecho", cells: [[4, 4], [4, 3], [3, 4]] },
+    ];
+    const candidateElbows = rawElbows.filter((el) =>
+      el.cells.every(([r, c]) => isCellNumber(r, c))
+    );
+
+    const alreadyWon = hasWonFigure("CODO");
+    if (!alreadyWon) {
+      for (const elbow of candidateElbows) {
+        if (elbow.cells.every(([r, c]) => isCellDrawn(r, c))) {
+          const isMarked = elbow.cells.every(([r, c]) => isCellMarked(r, c));
+          return {
+            isValidOfficial: true,
+            isMarkedByPlayer: isMarked,
+            patternName: elbow.name,
+            patternType: "CODO",
+            winningCells: elbow.cells,
+            missingOfficialNumbers: [],
+          };
+        }
+      }
+    }
+
+    let bestMissing: number[] = [];
+    for (const elbow of candidateElbows) {
+      const missing = elbow.cells
+        .filter(([r, c]) => !isCellDrawn(r, c))
+        .map(([r, c]) => grid[r][c]);
+      if (bestMissing.length === 0 || missing.length < bestMissing.length) {
+        bestMissing = missing;
+      }
+    }
+
+    return {
+      isValidOfficial: false,
+      isMarkedByPlayer: false,
+      patternName: alreadyWon ? "Codo (Ya ganado por este cartón)" : "Codo (3 Números en Esquina)",
+      patternType: "CODO",
+      winningCells: [],
+      missingOfficialNumbers: bestMissing,
     };
   }
 
