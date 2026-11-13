@@ -65,9 +65,9 @@ export const STAGES: Record<StageType, StageInfo> = {
   },
   LINEA_Y_ESQUINAS: {
     id: "LINEA_Y_ESQUINAS",
-    label: "Línea o 4 Esquinas (Cualquiera de las dos)",
-    shortLabel: "LÍNEA O 4 ESQUINAS",
-    description: "Gana con una Línea completa O con las 4 Esquinas",
+    label: "Línea, 4 Esquinas y Codo",
+    shortLabel: "LÍNEA, 4 ESQUINAS Y CODO",
+    description: "Gana con una Línea completa, las 4 Esquinas o un Codo",
     icon: "⭐",
   },
   PUNTA_Y_ESQUINAS: {
@@ -131,12 +131,13 @@ export function getEffectiveStagePrize(
   const lineaPrize = currentTablePrizes.LINEA || "$10 en Efectivo";
   const puntaPrize = currentTablePrizes.PUNTA || "$5 / Sorpresa";
   const esquinasPrize = currentTablePrizes.ESQUINAS || "$15 en Efectivo";
+  const codoPrize = currentTablePrizes.CODO || "$10 en Efectivo";
 
   if (stage === "LINEA_Y_PUNTA") {
     return `Línea: ${lineaPrize} • Punta: ${puntaPrize}`;
   }
   if (stage === "LINEA_Y_ESQUINAS") {
-    return `Línea: ${lineaPrize} • 4 Esquinas: ${esquinasPrize}`;
+    return `Línea: ${lineaPrize} • 4 Esquinas: ${esquinasPrize} • Codo: ${codoPrize}`;
   }
   if (stage === "PUNTA_Y_ESQUINAS") {
     return `Punta: ${puntaPrize} • 4 Esquinas: ${esquinasPrize}`;
@@ -674,6 +675,32 @@ export function validateTablePattern(
         winningCells: corners,
         missingOfficialNumbers: [],
       };
+    }
+
+    // Si NO ha ganado Codo, revisar los 4 codos
+    if (!hasWonFigure("CODO")) {
+      const rawElbows: { name: string; cells: [number, number][] }[] = [
+        { name: "Codo Superior Izquierdo", cells: [[0, 0], [0, 1], [1, 0]] },
+        { name: "Codo Superior Derecho", cells: [[0, 4], [0, 3], [1, 4]] },
+        { name: "Codo Inferior Izquierdo", cells: [[4, 0], [3, 0], [4, 1]] },
+        { name: "Codo Inferior Derecho", cells: [[4, 4], [4, 3], [3, 4]] },
+      ];
+      const candidateElbows = rawElbows.filter((el) =>
+        el.cells.every(([r, c]) => isCellNumber(r, c))
+      );
+      for (const elbow of candidateElbows) {
+        if (elbow.cells.every(([r, c]) => isCellDrawn(r, c))) {
+          const isMarked = elbow.cells.every(([r, c]) => isCellMarked(r, c));
+          return {
+            isValidOfficial: true,
+            isMarkedByPlayer: isMarked,
+            patternName: `${elbow.name} (Codo)`,
+            patternType: "CODO",
+            winningCells: elbow.cells,
+            missingOfficialNumbers: [],
+          };
+        }
+      }
     }
 
     return {
