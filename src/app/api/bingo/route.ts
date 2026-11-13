@@ -585,6 +585,21 @@ async function handlePostAction(req: NextRequest): Promise<NextResponse> {
       }
       writeSaasDb(db);
 
+      // Persistir inmediatamente el nuevo organizador y su primer evento (+ cartones iniciales) en Supabase
+      await supabase.from("organizers").upsert({
+        id: newOrg.id,
+        name: newOrg.name,
+        organization_name: newOrg.organizationName,
+        email: newOrg.email,
+        phone: newOrg.phone,
+        access_code: newOrg.accessCode,
+        plan_id: newOrg.planId,
+        status: newOrg.status,
+        total_paid_usd: newOrg.totalPaidUsd,
+        created_at: newOrg.createdAt,
+      });
+      await syncToSupabase(db, firstEventId, requestedPoolSize > 0);
+
       const summary = buildSaasSummary(firstEventId, newOrg.id);
       return NextResponse.json({
         ok: true,
@@ -641,6 +656,19 @@ async function handlePostAction(req: NextRequest): Promise<NextResponse> {
       }
 
       writeSaasDb(db);
+      // Persistir inmediatamente la configuración actualizada del organizador en Supabase
+      await supabase.from("organizers").upsert({
+        id: targetOrg.id,
+        name: targetOrg.name,
+        organization_name: targetOrg.organizationName,
+        email: targetOrg.email,
+        phone: targetOrg.phone,
+        access_code: targetOrg.accessCode,
+        plan_id: targetOrg.planId,
+        status: targetOrg.status,
+        total_paid_usd: targetOrg.totalPaidUsd,
+        created_at: targetOrg.createdAt,
+      });
       const summary = buildSaasSummary(requestedEventId);
       return NextResponse.json({
         ok: true,
