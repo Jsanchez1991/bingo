@@ -2,6 +2,7 @@ export type StageType =
   | "LINEA"
   | "PUNTA"
   | "CODO"
+  | "MACHETE"
   | "ESQUINAS"
   | "BINGO_LOCO"
   | "LETRA"
@@ -40,6 +41,13 @@ export const STAGES: Record<StageType, StageInfo> = {
     shortLabel: "CODO",
     description: "Completa los 3 números que forman un codo en cualquiera de las 4 esquinas",
     icon: "🦾",
+  },
+  MACHETE: {
+    id: "MACHETE",
+    label: "Machete / Estrella (Columna N)",
+    shortLabel: "MACHETE / ESTRELLA",
+    description: "Completa los 4 números de la columna central N (arriba y abajo del BINGO)",
+    icon: "⭐",
   },
   ESQUINAS: {
     id: "ESQUINAS",
@@ -96,6 +104,7 @@ export const STAGE_ORDER: StageType[] = [
   "LINEA",
   "PUNTA",
   "CODO",
+  "MACHETE",
   "ESQUINAS",
   "LINEA_Y_PUNTA",
   "LINEA_Y_ESQUINAS",
@@ -499,6 +508,41 @@ export function validateTablePattern(
       patternType: "CODO",
       winningCells: [],
       missingOfficialNumbers: bestMissing,
+    };
+  }
+
+  // 2-C. MODO MACHETE / ESTRELLA (Columna central N: [0,2], [1,2], [2,2], [3,2], [4,2])
+  if (stage === "MACHETE") {
+    const macheteCells: [number, number][] = [
+      [0, 2],
+      [1, 2],
+      [2, 2],
+      [3, 2],
+      [4, 2],
+    ];
+    const hasAllNumbers = macheteCells.every(
+      ([r, c]) => (r === 2 && c === 2) || isCellNumber(r, c)
+    );
+    const missingOfficial = hasAllNumbers
+      ? macheteCells
+          .filter(([r, c]) => !isCellDrawn(r, c))
+          .map(([r, c]) => grid[r][c])
+      : [];
+    const alreadyWon = hasWonFigure("MACHETE");
+    const isValidOfficial =
+      hasAllNumbers && !alreadyWon && missingOfficial.length === 0;
+    const isMarkedByPlayer =
+      hasAllNumbers && macheteCells.every(([r, c]) => isCellMarked(r, c));
+
+    return {
+      isValidOfficial,
+      isMarkedByPlayer,
+      patternName: alreadyWon
+        ? "Machete / Estrella (Ya ganado por este cartón)"
+        : "Machete / Estrella (Columna N)",
+      patternType: "MACHETE",
+      winningCells: isValidOfficial ? macheteCells : [],
+      missingOfficialNumbers: missingOfficial,
     };
   }
 
