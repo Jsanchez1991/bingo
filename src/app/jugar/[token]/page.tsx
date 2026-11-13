@@ -169,38 +169,32 @@ export default function PlayerBingoPage() {
           ? [data.card]
           : [];
 
-      // Fusionar marcas locales recientes que aún no han retornado del servidor para evitar que se despinten
-      const now = Date.now();
-      const mergedCards = incomingCards.map((c) => {
-        const updatedMarkedByTable = { ...c.markedByTable };
-        for (const [key, pending] of pendingMarksRef.current.entries()) {
-          const [pCardNum, pTableIdx, pNumStr] = key.split("_");
-          const pNum = Number(pNumStr);
-          if (c.cardNumber === pCardNum) {
-            const tableList = [...(updatedMarkedByTable[pTableIdx] || [])];
-            const hasNum = tableList.includes(pNum);
-            if (pending.marked && !hasNum) {
-              if (now - pending.timestamp < 10000) {
-                tableList.push(pNum);
-                updatedMarkedByTable[pTableIdx] = tableList;
-              } else {
-                pendingMarksRef.current.delete(key);
-              }
-            } else if (!pending.marked && hasNum) {
-              if (now - pending.timestamp < 10000) {
-                updatedMarkedByTable[pTableIdx] = tableList.filter((n) => n !== pNum);
-              } else {
-                pendingMarksRef.current.delete(key);
-              }
-            } else {
-              pendingMarksRef.current.delete(key);
-            }
-          }
+      setPlayerCards((prevCards) => {
+        // Si ya tenemos los cartones cargados en pantalla, preservar las marcas locales del jugador
+        // para que ninguna respuesta atrasada de otro servidor Vercel despinte o re-pinte un número.
+        if (prevCards.length > 0) {
+          const prevMap = new Map(prevCards.map((pc) => [pc.cardNumber, pc]));
+          return incomingCards.map((c) => {
+            const existing = prevMap.get(c.cardNumber);
+            return existing ? { ...c, markedByTable: existing.markedByTable } : c;
+          });
         }
-        return { ...c, markedByTable: updatedMarkedByTable };
-      });
 
-      setPlayerCards(mergedCards);
+        // Primera carga: restaurar marcas guardadas en localStorage del celular si existen
+        return incomingCards.map((c) => {
+          try {
+            const lsKey = `bingo_marks_${newState.eventId}_${c.cardNumber}`;
+            const savedRaw = localStorage.getItem(lsKey);
+            if (savedRaw) {
+              const parsed = JSON.parse(savedRaw);
+              if (parsed && typeof parsed === "object") {
+                return { ...c, markedByTable: parsed };
+              }
+            }
+          } catch {}
+          return c;
+        });
+      });
       setAccessAllowed(data.accessAllowed);
       setClientIp(data.clientIp || "");
       setErrorMsg(null);
@@ -302,12 +296,22 @@ export default function PlayerBingoPage() {
           ? currentList.filter((n) => n !== num)
           : [...currentList, num];
         updatedMarksForTable = updatedList;
+        const nextMarkedByTable = {
+          ...c.markedByTable,
+          [key]: updatedList,
+        };
+        // Guardar al instante en localStorage para que nunca se pierda aunque recargue o cambie de servidor
+        if (gameState?.eventId) {
+          try {
+            localStorage.setItem(
+              `bingo_marks_${gameState.eventId}_${c.cardNumber}`,
+              JSON.stringify(nextMarkedByTable)
+            );
+          } catch {}
+        }
         return {
           ...c,
-          markedByTable: {
-            ...c.markedByTable,
-            [key]: updatedList,
-          },
+          markedByTable: nextMarkedByTable,
         };
       })
     );
@@ -326,8 +330,8 @@ export default function PlayerBingoPage() {
 
     const timer = setTimeout(async () => {
       syncDebounceTimersRef.current.delete(debounceKey);
-      try {
-        await fetch("/api/bingo", {
+      const sendMarks = async () => {
+        const res = await fetch("/api/bingo", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -338,7 +342,16 @@ export default function PlayerBingoPage() {
             markedNumbers: updatedMarksForTable,
           }),
         });
-      } catch {}
+        if (!res.ok) throw new Error("sync failed");
+      };
+      try {
+        await sendMarks();
+      } catch {
+        // Reintento silencioso tras 1.5s si la red móvil falló en el primer intento
+        setTimeout(() => {
+          sendMarks().catch(() => {});
+        }, 1500);
+      }
     }, 350);
 
     syncDebounceTimersRef.current.set(debounceKey, timer);
