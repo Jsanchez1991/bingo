@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { TABLE_LETTERS } from "@/lib/bingo-patterns";
+import { CardMode, getTableLetterInfo } from "@/lib/bingo-patterns";
 
 interface BingoTableCardProps {
   tableIndex: number;
@@ -11,6 +11,7 @@ interface BingoTableCardProps {
   drawnBalls: number[];
   isActiveTable: boolean;
   isZoomed?: boolean;
+  cardMode?: CardMode;
   winningCells?: [number, number][];
   onSelectTable?: () => void;
   onToggleNumber?: (num: number) => void;
@@ -26,16 +27,14 @@ export default function BingoTableCard({
   drawnBalls,
   isActiveTable,
   isZoomed = false,
+  cardMode = "COMPLETO_6",
   winningCells = [],
   onSelectTable,
   onToggleNumber,
 }: BingoTableCardProps) {
   const markedSet = new Set(markedNumbers);
   const drawnSet = new Set(drawnBalls);
-  const letterInfo = TABLE_LETTERS[tableIndex] || {
-    letter: String(tableIndex),
-    title: `Tabla #${tableIndex}`,
-  };
+  const letterInfo = getTableLetterInfo(tableIndex, cardMode);
 
   const isWinningCell = (r: number, c: number) =>
     winningCells.some(([wr, wc]) => wr === r && wc === c);

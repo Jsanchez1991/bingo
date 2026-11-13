@@ -127,6 +127,8 @@ export function getEffectiveStagePrize(
   return currentTablePrizes[stage] || `Premio ${STAGES[stage]?.shortLabel || stage}`;
 }
 
+export type CardMode = "COMPLETO_6" | "CUARTAZO_4";
+
 export const TABLE_LETTERS: Record<number, { letter: string; title: string }> = {
   1: { letter: "B", title: "Letra B" },
   2: { letter: "I", title: "Letra I" },
@@ -135,6 +137,23 @@ export const TABLE_LETTERS: Record<number, { letter: string; title: string }> = 
   5: { letter: "O", title: "Letra O" },
   6: { letter: "LLENA", title: "Tabla Llena" },
 };
+
+export const CUARTAZO_TABLE_LETTERS: Record<number, { letter: string; title: string }> = {
+  1: { letter: "H", title: "Letra H" },
+  2: { letter: "E", title: "Letra E" },
+  3: { letter: "I", title: "Letra I" },
+  4: { letter: "LLENA", title: "Tabla Llena" },
+};
+
+export function getTableLetterInfo(
+  tableIndex: number,
+  cardMode: CardMode = "COMPLETO_6"
+): { letter: string; title: string } {
+  if (cardMode === "CUARTAZO_4") {
+    return CUARTAZO_TABLE_LETTERS[tableIndex] || { letter: String(tableIndex), title: `Tabla #${tableIndex}` };
+  }
+  return TABLE_LETTERS[tableIndex] || { letter: String(tableIndex), title: `Tabla #${tableIndex}` };
+}
 
 /**
  * Máscara exacta de qué casillas [fila, columna] llevan número en cada una de las 6 tablas:
@@ -190,24 +209,62 @@ export const TABLE_ACTIVE_MASKS: Record<number, [number, number][]> = {
   ],
 };
 
+export const CUARTAZO_ACTIVE_MASKS: Record<number, [number, number][]> = {
+  // Tabla #1: Letra H
+  1: [
+    [0, 0],                         [0, 4],
+    [1, 0],                         [1, 4],
+    [2, 0], [2, 1], [2, 2], [2, 3], [2, 4],
+    [3, 0],                         [3, 4],
+    [4, 0],                         [4, 4],
+  ],
+  // Tabla #2: Letra E
+  2: [
+    [0, 0], [0, 1], [0, 2], [0, 3], [0, 4],
+    [1, 0],
+    [2, 0], [2, 1], [2, 2], [2, 3], [2, 4],
+    [3, 0],
+    [4, 0], [4, 1], [4, 2], [4, 3], [4, 4],
+  ],
+  // Tabla #3: Letra I
+  3: [
+    [0, 0], [0, 1], [0, 2], [0, 3], [0, 4],
+                    [1, 2],
+                    [2, 2],
+                    [3, 2],
+    [4, 0], [4, 1], [4, 2], [4, 3], [4, 4],
+  ],
+  // Tabla #4: Tabla Llena
+  4: [
+    [0, 0], [0, 1], [0, 2], [0, 3], [0, 4],
+    [1, 0], [1, 1], [1, 2], [1, 3], [1, 4],
+    [2, 0], [2, 1], [2, 2], [2, 3], [2, 4],
+    [3, 0], [3, 1], [3, 2], [3, 3], [3, 4],
+    [4, 0], [4, 1], [4, 2], [4, 3], [4, 4],
+  ],
+};
+
 export function isCellActiveInTable(
   tableIndex: number,
   row: number,
-  col: number
+  col: number,
+  cardMode: CardMode = "COMPLETO_6"
 ): boolean {
   if (row === 2 && col === 2) return true;
-  const coords = TABLE_ACTIVE_MASKS[tableIndex] || TABLE_ACTIVE_MASKS[6];
+  const masks = cardMode === "CUARTAZO_4" ? CUARTAZO_ACTIVE_MASKS : TABLE_ACTIVE_MASKS;
+  const coords = masks[tableIndex] || TABLE_ACTIVE_MASKS[6];
   return coords.some(([r, c]) => r === row && c === col);
 }
 
 export function applyTableMask(
   masterGrid: number[][],
-  tableIndex: number
+  tableIndex: number,
+  cardMode: CardMode = "COMPLETO_6"
 ): number[][] {
   return masterGrid.map((row, rIdx) =>
     row.map((val, cIdx) => {
       if (rIdx === 2 && cIdx === 2) return 0;
-      return isCellActiveInTable(tableIndex, rIdx, cIdx) ? val : -1;
+      return isCellActiveInTable(tableIndex, rIdx, cIdx, cardMode) ? val : -1;
     })
   );
 }

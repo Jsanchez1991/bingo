@@ -14,6 +14,7 @@ import {
 import {
   STAGES,
   TABLE_LETTERS,
+  getTableLetterInfo,
   formatBall,
   validateTablePattern,
 } from "@/lib/bingo-patterns";
@@ -560,7 +561,7 @@ export default function PlayerBingoPage() {
   const hasMultipleSheets = playerCards.length > 1;
   const myCardNumbersSet = new Set(playerCards.map((c) => c.cardNumber));
   const activeStageInfo = STAGES[gameState.activeStage];
-  const activeLetterInfo = TABLE_LETTERS[gameState.activeTable];
+  const activeLetterInfo = getTableLetterInfo(gameState.activeTable, gameState.cardMode);
   const lastBall =
     gameState.drawnBalls.length > 0
       ? gameState.drawnBalls[gameState.drawnBalls.length - 1]
@@ -1166,6 +1167,7 @@ export default function PlayerBingoPage() {
                       drawnBalls={gameState.drawnBalls}
                       isActiveTable={gameState.activeTable === zoomedTable}
                       isZoomed={true}
+                      cardMode={gameState.cardMode}
                       winningCells={liveValidation.winningCells}
                       onToggleNumber={(num) =>
                         handleToggleNumber(
@@ -1362,6 +1364,7 @@ export default function PlayerBingoPage() {
                           gameState.activeTable === tableObj.tableIndex
                         }
                         isZoomed={false}
+                          cardMode={gameState.cardMode}
                         onSelectTable={() =>
                           setZoomedTable(tableObj.tableIndex)
                         }

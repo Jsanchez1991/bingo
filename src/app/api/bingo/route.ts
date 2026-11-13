@@ -503,6 +503,7 @@ async function handlePostAction(req: NextRequest): Promise<NextResponse> {
         organizerId: organizer.id,
         title: String(body.title || "NUEVO GRAN BINGO SOLIDARIO"),
         organizedBy: String(body.organizedBy || organizer.organizationName),
+        cardMode: body.cardMode === "CUARTAZO_4" ? "CUARTAZO_4" : "COMPLETO_6",
         priceText: String(body.priceText || "$2.00"),
         dateTimeText: String(body.dateTimeText || "Domingo 20h00"),
         address: String(
@@ -2047,6 +2048,7 @@ async function handlePostAction(req: NextRequest): Promise<NextResponse> {
             sharedToken,
             {
               eventId: targetState.eventId,
+              cardMode: targetState.cardMode || "COMPLETO_6",
               status: "VENDIDA",
               soldBySellerId:
                 sellerObj?.id || existingClientCard?.soldBySellerId,

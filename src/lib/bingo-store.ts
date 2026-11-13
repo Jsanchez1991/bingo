@@ -4,6 +4,7 @@ import crypto from "crypto";
 import { supabase } from "./supabase-client";
 import {
   StageType,
+  CardMode,
   validateTablePattern,
   ValidationResult,
   applyTableMask,
@@ -261,6 +262,7 @@ export interface BingoGameState {
   eventId: string;
   organizerId: string;
   status: "EN_VIVO" | "PROGRAMADO" | "FINALIZADO";
+  cardMode?: CardMode;
   event: EventMetadata;
   activeTable: number; // 1 a 6 (en orden: B, I, N, G, O, Tabla Llena)
   activeStage: StageType;
@@ -436,15 +438,16 @@ async function doSyncFromSupabase(): Promise<void> {
             confirmedAt: w.confirmed_at,
           }));
 
-        // Extraer tieBreak y selectionLinks guardados en prizes_by_table.__meta (o preservar memoria)
+        // Extraer tieBreak, selectionLinks y cardMode guardados en prizes_by_table (o preservar memoria)
         const rawPrizesByTable = ev.prizes_by_table || {};
-        const { __tieBreak, __selectionLinks, ...cleanPrizesByTable } = rawPrizesByTable;
+        const { __tieBreak, __selectionLinks, __cardMode, ...cleanPrizesByTable } = rawPrizesByTable;
         const prevInMemory = memoryCacheDb?.events?.[ev.id];
 
         eventsMap[ev.id] = {
           eventId: ev.id,
           organizerId: ev.organizer_id,
           status: ev.status,
+          cardMode: (__cardMode as CardMode) || prevInMemory?.cardMode || "COMPLETO_6",
           event: {
             title: ev.title,
             organizedBy: ev.organized_by || "",
@@ -577,6 +580,7 @@ export async function syncToSupabase(
             ...(targetEvent.event.prizesByTable || {}),
             __tieBreak: targetEvent.tieBreak || null,
             __selectionLinks: targetEvent.selectionLinks || [],
+            __cardMode: targetEvent.cardMode || "COMPLETO_6",
           },
           prizes_by_table_stage: targetEvent.event.prizesByTableStage,
           pregenerated_pool_size:
@@ -740,17 +744,19 @@ export function generateRandomMasterGrid(): number[][] {
 
 export function generateSixUniqueTablesModalidadA(
   cardNumber: string,
-  existingCards: BingoCardSheet[]
+  existingCards: BingoCardSheet[],
+  cardMode: CardMode = "COMPLETO_6"
 ): BingoTableData[] {
   const tables: BingoTableData[] = [];
   const usedCornerSignaturesInSameCard = new Set<string>();
+  const totalTables = cardMode === "CUARTAZO_4" ? 4 : 6;
 
-  for (let tIdx = 1; tIdx <= 6; tIdx++) {
+  for (let tIdx = 1; tIdx <= totalTables; tIdx++) {
     let chosenGrid: number[][] | null = null;
 
     for (let attempt = 0; attempt < 500; attempt++) {
       const rawGrid = generateRandomMasterGrid();
-      const maskedGrid = applyTableMask(rawGrid, tIdx);
+      const maskedGrid = applyTableMask(rawGrid, tIdx, cardMode);
 
       const cornerSig = `${maskedGrid[0][0]}-${maskedGrid[0][4]}-${maskedGrid[4][0]}-${maskedGrid[4][4]}`;
       if (usedCornerSignaturesInSameCard.has(cornerSig)) {
@@ -765,7 +771,7 @@ export function generateSixUniqueTablesModalidadA(
     }
 
     if (!chosenGrid) {
-      chosenGrid = applyTableMask(generateRandomMasterGrid(), tIdx);
+      chosenGrid = applyTableMask(generateRandomMasterGrid(), tIdx, cardMode);
     }
 
     tables.push({
@@ -787,6 +793,7 @@ export function createBingoCardSheet(
   forcedSecretToken?: string,
   extraMeta?: {
     eventId?: string;
+    cardMode?: CardMode;
     status?: "DISPONIBLE" | "VENDIDA";
     assignedSellerId?: string;
     assignedSellerName?: string;
@@ -798,7 +805,11 @@ export function createBingoCardSheet(
   const shortHash = crypto.randomBytes(3).toString("hex");
   const secretToken = forcedSecretToken || `carton-${cardNumber}-${shortHash}`;
 
-  const tables = generateSixUniqueTablesModalidadA(cardNumber, existingCards);
+  const tables = generateSixUniqueTablesModalidadA(
+    cardNumber,
+    existingCards,
+    extraMeta?.cardMode || "COMPLETO_6"
+  );
 
   return {
     id: cardNumber,
@@ -855,6 +866,7 @@ export function generateNumberedPoolForEvent(
         `disponible-${state.eventId}-${cardNumber}`,
         {
           eventId: state.eventId,
+          cardMode: state.cardMode || "COMPLETO_6",
           status: "DISPONIBLE",
         }
       );
@@ -1196,11 +1208,15 @@ export function createNewEventState(params: {
   address?: string;
   phones?: string;
   pregeneratedPoolSize?: number;
+  cardMode?: CardMode;
 }): BingoGameState {
+  const cardMode: CardMode = params.cardMode || "COMPLETO_6";
+  const isCuartazo = cardMode === "CUARTAZO_4";
   const state: BingoGameState = {
     eventId: params.eventId,
     organizerId: params.organizerId,
     status: "EN_VIVO",
+    cardMode,
     event: {
       title: params.title.toUpperCase(),
       organizedBy: params.organizedBy,
@@ -1210,19 +1226,28 @@ export function createNewEventState(params: {
       dateTimeText: params.dateTimeText || "Sábado 20h00",
       phones: params.phones || "099-000-0000",
       priceText: params.priceText || "$2.00",
-      prizesByTable: {
-        "1": "Premio Tabla #1 (Letra B)",
-        "2": "Premio Tabla #2 (Letra I)",
-        "3": "Premio Tabla #3 (Letra N)",
-        "4": "Premio Tabla #4 (Letra G)",
-        "5": "Premio Tabla #5 (Letra O)",
-        "6": "Gran Premio Mayor (Tabla Llena)",
-      },
+      prizesByTable: isCuartazo
+        ? {
+            "1": "Premio Tabla #1 (Letra H)",
+            "2": "Premio Tabla #2 (Letra E)",
+            "3": "Premio Tabla #3 (Letra I)",
+            "4": "Gran Premio Mayor (Tabla Llena)",
+          }
+        : {
+            "1": "Premio Tabla #1 (Letra B)",
+            "2": "Premio Tabla #2 (Letra I)",
+            "3": "Premio Tabla #3 (Letra N)",
+            "4": "Premio Tabla #4 (Letra G)",
+            "5": "Premio Tabla #5 (Letra O)",
+            "6": "Gran Premio Mayor (Tabla Llena)",
+          },
       prizesByTableStage: createDefaultPrizesMatrix(),
     },
     activeTable: 1,
     activeStage: "LETRA",
-    currentPrizeName: "Canasta de Víveres #1 (Letra B)",
+    currentPrizeName: isCuartazo
+      ? "Premio Tabla #1 (Letra H)"
+      : "Canasta de Víveres #1 (Letra B)",
     drawnBalls: [],
     isPausedForVerification: false,
     cards: [],
@@ -1254,7 +1279,7 @@ export function createNewEventState(params: {
       "0990001111",
       [],
       `${params.eventId}-00001`,
-      { eventId: params.eventId, status: "VENDIDA" }
+      { eventId: params.eventId, cardMode, status: "VENDIDA" }
     );
     state.cards = [c1];
   }

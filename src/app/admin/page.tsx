@@ -14,7 +14,9 @@ import {
   STAGES,
   STAGE_ORDER,
   StageType,
+  CardMode,
   TABLE_LETTERS,
+  getTableLetterInfo,
   formatBall,
   SaasPlanDefinition,
   SaasPlanId,
@@ -129,6 +131,7 @@ export default function AdminOrganizerPage() {
   // Modal rápido para crear un nuevo evento del organizador logueado
   const [showNewEventModal, setShowNewEventModal] = useState<boolean>(false);
   const [newEvtTitle, setNewEvtTitle] = useState<string>("");
+  const [newEvtCardMode, setNewEvtCardMode] = useState<CardMode>("COMPLETO_6");
   const [newEvtPrice, setNewEvtPrice] = useState<string>("$2.00");
   const [newEvtDate, setNewEvtDate] = useState<string>("Domingo 20h00");
 
@@ -729,6 +732,7 @@ export default function AdminOrganizerPage() {
       title: newEvtTitle,
       priceText: newEvtPrice,
       dateTimeText: newEvtDate,
+      cardMode: newEvtCardMode,
     });
     if (res.ok && res.state) {
       setShowNewEventModal(false);
@@ -943,6 +947,19 @@ export default function AdminOrganizerPage() {
                 onChange={(e) => setNewEvtPrice(e.target.value)}
                 className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm font-black text-amber-300"
               />
+            </div>
+            <div>
+              <label className="block text-xs font-black uppercase text-amber-300 mb-1">
+                Modalidad de Cartón
+              </label>
+              <select
+                value={newEvtCardMode}
+                onChange={(e) => setNewEvtCardMode(e.target.value as CardMode)}
+                className="bg-slate-950 border border-amber-400/70 rounded-xl px-3 py-2.5 text-sm font-black text-white"
+              >
+                <option value="COMPLETO_6">Cartón Completo (6 Juegos)</option>
+                <option value="CUARTAZO_4">Cuartazo (4 Juegos: H-E-I-Llena)</option>
+              </select>
             </div>
             <button
               type="submit"
@@ -1312,13 +1329,14 @@ export default function AdminOrganizerPage() {
           </div>
 
           {/* Las 6 Tablas en orden (B - I - N - G - O - Llena) */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 mb-5">
-            {[1, 2, 3, 4, 5, 6].map((tIdx) => {
+          <div className={`grid grid-cols-2 sm:grid-cols-3 ${gameState.cardMode === "CUARTAZO_4" ? "lg:grid-cols-4" : "lg:grid-cols-6"} gap-2.5 mb-5`}>
+            {(gameState.cardMode === "CUARTAZO_4" ? [1, 2, 3, 4] : [1, 2, 3, 4, 5, 6]).map((tIdx) => {
               const isCurrent = gameState.activeTable === tIdx;
-              const info = TABLE_LETTERS[tIdx];
+              const info = getTableLetterInfo(tIdx, gameState.cardMode);
+              const totalTablesInMode = gameState.cardMode === "CUARTAZO_4" ? 4 : 6;
               const mainTablePrize =
                 prizesMatrix[String(tIdx)]?.[
-                  tIdx === 6 ? "LLENA" : "LETRA"
+                  tIdx === totalTablesInMode ? "LLENA" : "LETRA"
                 ] || `Premio Tabla #${tIdx}`;
 
               return (
@@ -1345,7 +1363,7 @@ export default function AdminOrganizerPage() {
                   }`}
                 >
                   <div className="text-xs font-extrabold uppercase opacity-80">
-                    Juego {tIdx} de 6
+                    Juego {tIdx} de {gameState.cardMode === "CUARTAZO_4" ? 4 : 6}
                   </div>
                   <div className="text-xl font-black">TABLA #{tIdx}</div>
                   <div className="text-sm font-bold text-amber-300">
@@ -2251,6 +2269,7 @@ export default function AdminOrganizerPage() {
                         drawnBalls={gameState.drawnBalls}
                         isActiveTable={true}
                         isZoomed={false}
+                        cardMode={gameState.cardMode}
                         winningCells={selectedClaim.validation.winningCells}
                       />
                     );
