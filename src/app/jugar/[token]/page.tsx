@@ -1007,11 +1007,15 @@ export default function PlayerBingoPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2">
-              {[1, 2, 3, 4, 5, 6].map((tNum) => {
+            <div
+              className={`grid grid-cols-2 sm:grid-cols-3 ${
+                gameState.cardMode === "CUARTAZO_4" ? "md:grid-cols-4" : "md:grid-cols-6"
+              } gap-2`}
+            >
+              {(gameState.cardMode === "CUARTAZO_4" ? [1, 2, 3, 4] : [1, 2, 3, 4, 5, 6]).map((tNum) => {
                 const isCurrentZoom = zoomedTable === tNum;
                 const isLiveTable = gameState.activeTable === tNum;
-                const letterInfo = TABLE_LETTERS[tNum];
+                const letterInfo = getTableLetterInfo(tNum, gameState.cardMode);
 
                 return (
                   <button
@@ -1064,7 +1068,7 @@ export default function PlayerBingoPage() {
                 </div>
                 <div className="text-lg sm:text-xl font-black text-slate-950">
                   {hasMultipleSheets
-                    ? `Juego #${zoomedTable} (${TABLE_LETTERS[zoomedTable]?.title}) de tus ${playerCards.length} Tablas Compradas`
+                    ? `Juego #${zoomedTable} (${getTableLetterInfo(zoomedTable, gameState.cardMode).title}) de tus ${playerCards.length} Tablas Compradas`
                     : `Toca los números en tu Tabla #${zoomedTable} para pintarlos`}
                 </div>
               </div>
